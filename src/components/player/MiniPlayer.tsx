@@ -48,77 +48,66 @@ export default function MiniPlayer() {
       className="bg-card border-t border-border player-shadow"
     >
       {/* Progress bar at top */}
-      <div className="absolute top-0 left-0 right-0 h-1 bg-muted">
+      <div className="absolute top-0 left-0 right-0 h-0.5 bg-muted">
         <motion.div
-          className="h-full gradient-primary"
+          className="h-full bg-primary"
           style={{ width: `${progress}%` }}
           layoutId="progress"
         />
       </div>
 
-      <div className="flex items-center justify-between px-4 py-3 md:px-6">
+      <div className="flex items-center justify-between px-3 py-2 md:px-6 md:py-3">
         {/* Song Info */}
         <button
           onClick={handleExpandPlayer}
           className="flex items-center gap-3 flex-1 min-w-0 text-left"
         >
           {/* Album Art */}
-          <div className="relative w-12 h-12 md:w-14 md:h-14 rounded-lg overflow-hidden flex-shrink-0 bg-muted">
+          <div className="relative w-12 h-12 rounded-md overflow-hidden flex-shrink-0 bg-muted">
             {currentSong.artwork ? (
               <img
                 src={currentSong.artwork}
                 alt={currentSong.title}
-                className={cn(
-                  'w-full h-full object-cover transition-transform duration-300',
-                  isPlaying && 'scale-105'
-                )}
+                className="w-full h-full object-cover"
               />
             ) : (
               <div className="w-full h-full gradient-primary flex items-center justify-center">
-                <span className="text-2xl">🎵</span>
+                <span className="text-xl">🎵</span>
               </div>
             )}
           </div>
 
           {/* Title & Artist */}
           <div className="min-w-0 flex-1">
-            <h4 className="font-medium text-foreground truncate text-sm md:text-base">
+            <h4 className="font-medium text-foreground truncate text-sm">
               {currentSong.title}
             </h4>
-            <p className="text-xs md:text-sm text-muted-foreground truncate">
-              {currentSong.artist}
+            <p className="text-xs text-muted-foreground truncate">
+              {currentSong.title}
             </p>
           </div>
         </button>
 
-        {/* Controls */}
-        <div className="flex items-center gap-1 md:gap-2">
+        {/* Controls - JioSaavn Style */}
+        <div className="flex items-center gap-1">
           <Button
             variant="ghost"
             size="icon"
-            className="hidden md:flex h-9 w-9 text-muted-foreground hover:text-foreground"
+            className="h-10 w-10 text-foreground"
           >
-            <Heart className="w-4 h-4" />
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={previous}
-            className="h-9 w-9 text-muted-foreground hover:text-foreground"
-          >
-            <SkipBack className="w-5 h-5" />
+            <Heart className="w-5 h-5" />
           </Button>
 
           <Button
             onClick={toggle}
+            variant="ghost"
             size="icon"
-            className="h-10 w-10 rounded-full gradient-primary text-primary-foreground hover:opacity-90"
+            className="h-10 w-10 text-foreground"
           >
             {isPlaying ? (
-              <Pause className="w-5 h-5" />
+              <Pause className="w-6 h-6" />
             ) : (
-              <Play className="w-5 h-5 ml-0.5" />
+              <Play className="w-6 h-6 ml-0.5" fill="currentColor" />
             )}
           </Button>
 
@@ -126,22 +115,13 @@ export default function MiniPlayer() {
             variant="ghost"
             size="icon"
             onClick={next}
-            className="h-9 w-9 text-muted-foreground hover:text-foreground"
+            className="h-10 w-10 text-foreground"
           >
             <SkipForward className="w-5 h-5" />
           </Button>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleExpandPlayer}
-            className="h-9 w-9 text-muted-foreground hover:text-foreground md:hidden"
-          >
-            <ChevronUp className="w-5 h-5" />
-          </Button>
         </div>
 
-        {/* Desktop: Time & Volume */}
+        {/* Desktop: Time & Slider */}
         <div className="hidden lg:flex items-center gap-4 ml-6 min-w-[200px]">
           <span className="text-xs text-muted-foreground w-10 text-right">
             {formatTime(currentTime)}
