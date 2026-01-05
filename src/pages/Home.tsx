@@ -1,22 +1,25 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Play, Search, Upload, Radio } from 'lucide-react';
+import { ChevronRight, Play, Search, Upload, Radio, Music } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import SongCard from '@/components/ui/SongCard';
 import PlaylistCard from '@/components/ui/PlaylistCard';
 import { usePlayer } from '@/contexts/PlayerContext';
-import {
-  sampleSongs,
-  samplePlaylists,
-  trendingSongs,
-  recentlyPlayed,
-} from '@/data/sampleSongs';
+import { useOnlineMusic } from '@/hooks/useOnlineMusic';
+import { useLocalMusic } from '@/hooks/useLocalMusic';
+import { samplePlaylists } from '@/data/sampleSongs';
 
 export default function Home() {
   const navigate = useNavigate();
   const { currentSong, isPlaying, playPlaylist, addToQueue } = usePlayer();
+  const { trendingSongs, isLoadingTrending, fetchTrending } = useOnlineMusic();
+  const { localSongs } = useLocalMusic();
+
+  // Fetch trending Indian songs on mount
+  useEffect(() => {
+    fetchTrending();
+  }, [fetchTrending]);
 
   const greeting = () => {
     const hour = new Date().getHours();
@@ -66,12 +69,12 @@ export default function Home() {
               onClick={() => navigate('/search')}
             >
               <Search className="w-4 h-4" />
-              Search
+              Search Songs
             </Button>
             <Button
               variant="secondary"
               className="gap-2"
-              onClick={() => navigate('/import')}
+              onClick={() => navigate('/library')}
             >
               <Upload className="w-4 h-4" />
               Import Music
@@ -117,27 +120,88 @@ export default function Home() {
         </div>
       </motion.section>
 
-      {/* Trending Now */}
+      {/* Your Local Music */}
+      {localSongs.length > 0 && (
+        <motion.section variants={itemVariants} className="px-6 md:px-8 mt-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-foreground">
+              <Music className="w-5 h-5 inline mr-2" />
+              Your Local Music
+            </h2>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="text-muted-foreground"
+              onClick={() => navigate('/library')}
+            >
+              See All <ChevronRight className="w-4 h-4 ml-1" />
+            </Button>
+          </div>
+          <div className="bg-card rounded-xl overflow-hidden">
+            {localSongs.slice(0, 5).map((song, index) => (
+              <SongCard
+                key={song.id}
+                song={song}
+                index={index}
+                variant="list"
+                isPlaying={isPlaying}
+                isActive={currentSong?.id === song.id}
+                onPlay={() => playPlaylist(localSongs, index)}
+                onAddToQueue={() => addToQueue(song)}
+              />
+            ))}
+          </div>
+        </motion.section>
+      )}
+
+      {/* Trending Indian Songs */}
       <motion.section variants={itemVariants} className="px-6 md:px-8 mt-8">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-foreground">Trending Now 🔥</h2>
-          <Button variant="ghost" size="sm" className="text-muted-foreground">
-            See All <ChevronRight className="w-4 h-4 ml-1" />
+          <h2 className="text-xl font-bold text-foreground">🔥 Trending Hindi Songs</h2>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="text-muted-foreground"
+            onClick={() => navigate('/search')}
+          >
+            Browse More <ChevronRight className="w-4 h-4 ml-1" />
           </Button>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {trendingSongs.map((song) => (
-            <SongCard
-              key={song.id}
-              song={song}
-              variant="grid"
-              isPlaying={isPlaying}
-              isActive={currentSong?.id === song.id}
-              onPlay={() => playPlaylist(trendingSongs, trendingSongs.indexOf(song))}
-              onAddToQueue={() => addToQueue(song)}
+        {isLoadingTrending ? (
+          <div className="flex items-center justify-center py-12">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+              className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full"
             />
-          ))}
-        </div>
+          </div>
+        ) : trendingSongs.length > 0 ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {trendingSongs.slice(0, 10).map((song, index) => (
+              <SongCard
+                key={song.id}
+                song={song}
+                variant="grid"
+                isPlaying={isPlaying}
+                isActive={currentSong?.id === song.id}
+                onPlay={() => playPlaylist(trendingSongs, index)}
+                onAddToQueue={() => addToQueue(song)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            <p>Unable to load trending songs</p>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="mt-2"
+              onClick={() => fetchTrending()}
+            >
+              Retry
+            </Button>
+          </div>
+        )}
       </motion.section>
 
       {/* Featured Playlists */}
@@ -160,48 +224,22 @@ export default function Home() {
         </div>
       </motion.section>
 
-      {/* Recently Played */}
+      {/* Quick Access to Search */}
       <motion.section variants={itemVariants} className="px-6 md:px-8 mt-10">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-foreground">Recently Played</h2>
-          <Button variant="ghost" size="sm" className="text-muted-foreground">
-            See All <ChevronRight className="w-4 h-4 ml-1" />
+        <div className="bg-gradient-to-r from-primary/20 to-accent/20 rounded-xl p-6 text-center">
+          <h3 className="text-lg font-semibold text-foreground mb-2">
+            🎵 Search for any song
+          </h3>
+          <p className="text-muted-foreground text-sm mb-4">
+            Search Hindi, Punjabi, Bollywood, and more songs
+          </p>
+          <Button 
+            className="gradient-primary text-primary-foreground"
+            onClick={() => navigate('/search')}
+          >
+            <Search className="w-4 h-4 mr-2" />
+            Start Searching
           </Button>
-        </div>
-        <div className="bg-card rounded-xl overflow-hidden">
-          {recentlyPlayed.map((song, index) => (
-            <SongCard
-              key={song.id}
-              song={song}
-              index={index}
-              variant="list"
-              isPlaying={isPlaying}
-              isActive={currentSong?.id === song.id}
-              onPlay={() => playPlaylist(recentlyPlayed, index)}
-              onAddToQueue={() => addToQueue(song)}
-            />
-          ))}
-        </div>
-      </motion.section>
-
-      {/* All Songs */}
-      <motion.section variants={itemVariants} className="px-6 md:px-8 mt-10">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-foreground">All Songs</h2>
-        </div>
-        <div className="bg-card rounded-xl overflow-hidden">
-          {sampleSongs.map((song, index) => (
-            <SongCard
-              key={song.id}
-              song={song}
-              index={index}
-              variant="list"
-              isPlaying={isPlaying}
-              isActive={currentSong?.id === song.id}
-              onPlay={() => playPlaylist(sampleSongs, index)}
-              onAddToQueue={() => addToQueue(song)}
-            />
-          ))}
         </div>
       </motion.section>
     </motion.div>
