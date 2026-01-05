@@ -1,224 +1,249 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Plus, ListMusic, Heart, Clock, Download, FolderOpen, Upload, Trash2 } from 'lucide-react';
+import { Plus, ListMusic, Heart, ArrowUpDown, FolderOpen, Upload, Search, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import PlaylistCard from '@/components/ui/PlaylistCard';
+import FilterChips from '@/components/ui/FilterChips';
 import SongCard from '@/components/ui/SongCard';
 import { usePlayer } from '@/contexts/PlayerContext';
 import { useLocalMusic } from '@/hooks/useLocalMusic';
 import { samplePlaylists } from '@/data/sampleSongs';
 
+const libraryFilters = [
+  { id: 'playlists', label: 'Playlists' },
+  { id: 'songs', label: 'Songs' },
+  { id: 'artists', label: 'Artists' },
+  { id: 'albums', label: 'Albums' },
+  { id: 'local', label: 'Local' },
+];
+
+const quickActions = [
+  { id: 'liked', name: 'Liked Songs', icon: Heart, count: 24, gradient: 'from-purple-600 to-blue-600' },
+];
+
 export default function Library() {
   const navigate = useNavigate();
   const { currentSong, isPlaying, playPlaylist, addToQueue } = usePlayer();
-  const { localSongs, isLoading, openFilePicker, openFolderPicker, clearLocalSongs } = useLocalMusic();
-  const [activeTab, setActiveTab] = useState('songs');
+  const { localSongs, isLoading, openFilePicker, openFolderPicker } = useLocalMusic();
+  const [activeFilter, setActiveFilter] = useState('playlists');
+  const [sortBy, setSortBy] = useState('recents');
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="min-h-screen pb-32 px-6 md:px-8 pt-6"
+      className="min-h-screen pb-32"
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Your Library</h1>
-        <Button className="gap-2 gradient-primary text-primary-foreground">
-          <Plus className="w-4 h-4" />
-          New Playlist
-        </Button>
-      </div>
-
-      {/* Import Section */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-card rounded-xl p-5 mb-6 border border-border"
-      >
-        <div className="flex items-center justify-between mb-4">
+      <div className="sticky top-0 z-10 bg-background">
+        <div className="flex items-center justify-between px-4 md:px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
-              <ListMusic className="w-5 h-5 text-primary" />
+            <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center">
+              <ListMusic className="w-4 h-4 text-primary-foreground" />
             </div>
-            <div>
-              <h3 className="font-semibold text-foreground">Import Local Music</h3>
-              <p className="text-sm text-muted-foreground">
-                {localSongs.length} songs imported
-              </p>
-            </div>
+            <h1 className="text-xl font-bold text-foreground">Your Library</h1>
           </div>
-          {localSongs.length > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearLocalSongs}
-              className="text-destructive hover:text-destructive"
-            >
-              <Trash2 className="w-4 h-4 mr-1" />
-              Clear All
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/search')}>
+              <Search className="w-5 h-5" />
             </Button>
-          )}
+            <Button variant="ghost" size="icon" className="gradient-primary text-primary-foreground rounded-full">
+              <Plus className="w-5 h-5" />
+            </Button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Button
-            variant="outline"
-            className="h-16 flex-col gap-1.5"
-            onClick={openFilePicker}
-            disabled={isLoading}
-          >
-            <Upload className="w-5 h-5" />
-            <span className="text-xs">Add Files</span>
-          </Button>
-          <Button
-            variant="outline"
-            className="h-16 flex-col gap-1.5"
-            onClick={openFolderPicker}
-            disabled={isLoading}
-          >
-            <FolderOpen className="w-5 h-5" />
-            <span className="text-xs">Scan Folder</span>
-          </Button>
-        </div>
-
-        {isLoading && (
-          <div className="mt-4 text-center text-sm text-muted-foreground">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-              className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2"
-            />
-            Scanning files...
-          </div>
-        )}
-        <p className="text-xs text-muted-foreground mt-3 text-center">
-          Supports MP3, WAV, OGG, M4A, FLAC, AAC
-        </p>
-      </motion.div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <div className="bg-card rounded-xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
-            <ListMusic className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-foreground">{samplePlaylists.length}</p>
-            <p className="text-xs text-muted-foreground">Playlists</p>
-          </div>
-        </div>
-        <div className="bg-card rounded-xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-pink-500/20 flex items-center justify-center">
-            <Heart className="w-5 h-5 text-pink-500" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-foreground">24</p>
-            <p className="text-xs text-muted-foreground">Liked Songs</p>
-          </div>
-        </div>
-        <div className="bg-card rounded-xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-            <Clock className="w-5 h-5 text-blue-500" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-foreground">12h</p>
-            <p className="text-xs text-muted-foreground">Listening Time</p>
-          </div>
-        </div>
-        <div className="bg-card rounded-xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
-            <Download className="w-5 h-5 text-green-500" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-foreground">{localSongs.length}</p>
-            <p className="text-xs text-muted-foreground">Local Songs</p>
-          </div>
+        {/* Filter Chips */}
+        <div className="px-4 md:px-6 pb-2">
+          <FilterChips 
+            chips={libraryFilters} 
+            activeChip={activeFilter} 
+            onChange={setActiveFilter} 
+          />
         </div>
       </div>
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-surface mb-6">
-          <TabsTrigger value="songs">Local Songs</TabsTrigger>
-          <TabsTrigger value="playlists">Playlists</TabsTrigger>
-          <TabsTrigger value="albums">Albums</TabsTrigger>
-          <TabsTrigger value="artists">Artists</TabsTrigger>
-        </TabsList>
+      {/* Sort Button */}
+      <div className="px-4 md:px-6 py-3">
+        <button 
+          className="flex items-center gap-2 text-sm text-muted-foreground"
+          onClick={() => setSortBy(sortBy === 'recents' ? 'name' : 'recents')}
+        >
+          <ArrowUpDown className="w-4 h-4" />
+          {sortBy === 'recents' ? 'Recents' : 'Alphabetical'}
+        </button>
+      </div>
 
-        <TabsContent value="songs">
-          {localSongs.length > 0 ? (
-            <div className="bg-card rounded-xl overflow-hidden">
-              {localSongs.map((song, index) => (
-                <SongCard
-                  key={song.id}
-                  song={song}
-                  index={index}
-                  variant="list"
-                  isPlaying={isPlaying}
-                  isActive={currentSong?.id === song.id}
-                  onPlay={() => playPlaylist(localSongs, index)}
-                  onAddToQueue={() => addToQueue(song)}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-16">
-              <ListMusic className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">No local songs yet</p>
-              <p className="text-sm text-muted-foreground mt-2">
-                Use the import buttons above to add music
-              </p>
-            </div>
-          )}
-        </TabsContent>
+      {/* Content based on filter */}
+      <div className="px-4 md:px-6">
+        {/* Playlists View */}
+        {activeFilter === 'playlists' && (
+          <div className="space-y-3">
+            {/* Liked Songs */}
+            {quickActions.map((action) => (
+              <motion.button
+                key={action.id}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => navigate('/liked')}
+                className="w-full flex items-center gap-4 p-2 rounded-lg hover:bg-surface transition-colors"
+              >
+                <div className={`w-14 h-14 rounded-lg bg-gradient-to-br ${action.gradient} flex items-center justify-center`}>
+                  <action.icon className="w-6 h-6 text-white" fill="white" />
+                </div>
+                <div className="flex-1 text-left">
+                  <h4 className="font-semibold text-foreground">{action.name}</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Playlist • {action.count} songs
+                  </p>
+                </div>
+              </motion.button>
+            ))}
 
-        <TabsContent value="playlists">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {/* Liked Songs Card */}
-            <motion.div
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="group relative bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg p-4 cursor-pointer"
-              onClick={() => navigate('/liked')}
-            >
-              <div className="aspect-square rounded-md overflow-hidden mb-4 bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center shadow-lg">
-                <Heart className="w-16 h-16 text-white fill-current" />
-              </div>
-              <h4 className="font-semibold text-white truncate">Liked Songs</h4>
-              <p className="text-sm text-white/70 truncate">24 songs</p>
-            </motion.div>
-
+            {/* Sample Playlists */}
             {samplePlaylists.map((playlist) => (
-              <PlaylistCard
+              <motion.button
                 key={playlist.id}
-                playlist={playlist}
-                onPlay={() => playPlaylist(playlist.songs)}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => navigate(`/playlist/${playlist.id}`)}
-              />
+                className="w-full flex items-center gap-4 p-2 rounded-lg hover:bg-surface transition-colors"
+              >
+                <img
+                  src={playlist.artwork}
+                  alt={playlist.name}
+                  className="w-14 h-14 rounded-lg object-cover"
+                />
+                <div className="flex-1 text-left">
+                  <h4 className="font-semibold text-foreground">{playlist.name}</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Playlist • {playlist.songs.length} songs
+                  </p>
+                </div>
+              </motion.button>
             ))}
           </div>
-        </TabsContent>
+        )}
 
-        <TabsContent value="albums">
-          <div className="text-center py-16">
-            <p className="text-muted-foreground">No albums yet</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Import music to see your albums
-            </p>
+        {/* Songs View */}
+        {activeFilter === 'songs' && (
+          <div>
+            {localSongs.length > 0 ? (
+              <div className="bg-card rounded-xl overflow-hidden">
+                {localSongs.map((song, index) => (
+                  <SongCard
+                    key={song.id}
+                    song={song}
+                    index={index}
+                    variant="list"
+                    isPlaying={isPlaying}
+                    isActive={currentSong?.id === song.id}
+                    onPlay={() => playPlaylist(localSongs, index)}
+                    onAddToQueue={() => addToQueue(song)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <EmptyState 
+                icon={ListMusic} 
+                title="No songs yet" 
+                subtitle="Import your local music to see it here" 
+              />
+            )}
           </div>
-        </TabsContent>
+        )}
 
-        <TabsContent value="artists">
-          <div className="text-center py-16">
-            <p className="text-muted-foreground">No artists yet</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Start listening to discover artists
-            </p>
+        {/* Local View */}
+        {activeFilter === 'local' && (
+          <div className="space-y-4">
+            {/* Import Buttons */}
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                variant="outline"
+                className="h-24 flex-col gap-2 bg-surface border-dashed border-border"
+                onClick={openFilePicker}
+                disabled={isLoading}
+              >
+                <Upload className="w-6 h-6 text-primary" />
+                <span className="text-sm">Add Files</span>
+              </Button>
+              <Button
+                variant="outline"
+                className="h-24 flex-col gap-2 bg-surface border-dashed border-border"
+                onClick={openFolderPicker}
+                disabled={isLoading}
+              >
+                <FolderOpen className="w-6 h-6 text-primary" />
+                <span className="text-sm">Scan Folder</span>
+              </Button>
+            </div>
+
+            {isLoading && (
+              <div className="text-center py-8">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                  className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full mx-auto mb-2"
+                />
+                <p className="text-sm text-muted-foreground">Scanning files...</p>
+              </div>
+            )}
+
+            {/* Local Songs List */}
+            {localSongs.length > 0 ? (
+              <div className="bg-card rounded-xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-border">
+                  <p className="text-sm text-muted-foreground">{localSongs.length} local songs</p>
+                </div>
+                {localSongs.map((song, index) => (
+                  <SongCard
+                    key={song.id}
+                    song={song}
+                    index={index}
+                    variant="list"
+                    isPlaying={isPlaying}
+                    isActive={currentSong?.id === song.id}
+                    onPlay={() => playPlaylist(localSongs, index)}
+                    onAddToQueue={() => addToQueue(song)}
+                  />
+                ))}
+              </div>
+            ) : !isLoading && (
+              <EmptyState 
+                icon={FolderOpen} 
+                title="No local music" 
+                subtitle="Import music from your device" 
+              />
+            )}
           </div>
-        </TabsContent>
-      </Tabs>
+        )}
+
+        {/* Artists View */}
+        {activeFilter === 'artists' && (
+          <EmptyState 
+            icon={ListMusic} 
+            title="No artists yet" 
+            subtitle="Start listening to discover artists" 
+          />
+        )}
+
+        {/* Albums View */}
+        {activeFilter === 'albums' && (
+          <EmptyState 
+            icon={ListMusic} 
+            title="No albums yet" 
+            subtitle="Import music to see your albums" 
+          />
+        )}
+      </div>
     </motion.div>
+  );
+}
+
+function EmptyState({ icon: Icon, title, subtitle }: { icon: any; title: string; subtitle: string }) {
+  return (
+    <div className="text-center py-16">
+      <Icon className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+      <p className="text-foreground font-medium">{title}</p>
+      <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
+    </div>
   );
 }

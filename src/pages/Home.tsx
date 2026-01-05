@@ -1,45 +1,85 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Play, Search, Upload, Radio, Music } from 'lucide-react';
+import { ChevronRight, Play, Music } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import FilterChips from '@/components/ui/FilterChips';
+import TrendingCard from '@/components/ui/TrendingCard';
+import ArtistCard from '@/components/ui/ArtistCard';
+import StoragePermission from '@/components/ui/StoragePermission';
 import SongCard from '@/components/ui/SongCard';
-import PlaylistCard from '@/components/ui/PlaylistCard';
 import { usePlayer } from '@/contexts/PlayerContext';
 import { useOnlineMusic } from '@/hooks/useOnlineMusic';
 import { useLocalMusic } from '@/hooks/useLocalMusic';
-import { samplePlaylists } from '@/data/sampleSongs';
+
+const filterChips = [
+  { id: 'all', label: 'All' },
+  { id: 'music', label: 'Music' },
+  { id: 'local', label: 'Local Songs' },
+  { id: 'bollywood', label: 'Bollywood' },
+  { id: 'punjabi', label: 'Punjabi' },
+];
+
+const featuredArtists = [
+  { name: 'Arijit Singh', image: 'https://i.scdn.co/image/ab6761610000e5eb0261696c5df3be99da6ed3f3', label: 'Featuring' },
+  { name: 'Diljit Dosanjh', image: 'https://i.scdn.co/image/ab6761610000e5eb31f6ab37e6bf690a4d9f64cd', label: 'Featuring' },
+  { name: 'AP Dhillon', image: 'https://i.scdn.co/image/ab6761610000e5eb5f066d2825c0dcb3141a7b11', label: 'Featuring' },
+  { name: 'Atif Aslam', image: 'https://i.scdn.co/image/ab6761610000e5eb92e01193d86f0fde7cfde397', label: 'Featuring' },
+];
 
 export default function Home() {
   const navigate = useNavigate();
   const { currentSong, isPlaying, playPlaylist, addToQueue } = usePlayer();
-  const { trendingSongs, isLoadingTrending, fetchTrending } = useOnlineMusic();
-  const { localSongs } = useLocalMusic();
+  const { trendingSongs, isLoadingTrending, fetchTrending, searchSongs, searchResults, isSearching } = useOnlineMusic();
+  const { localSongs, openFolderPicker } = useLocalMusic();
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [showPermission, setShowPermission] = useState(false);
 
-  // Fetch trending Indian songs on mount
   useEffect(() => {
     fetchTrending();
-  }, [fetchTrending]);
+    // Check if we should show permission prompt
+    const dismissed = localStorage.getItem('storagePermissionDismissed');
+    const granted = localStorage.getItem('storagePermissionGranted');
+    if (!dismissed && !granted && localSongs.length === 0) {
+      const timer = setTimeout(() => setShowPermission(true), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [fetchTrending, localSongs.length]);
 
-  const greeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good Morning';
-    if (hour < 18) return 'Good Afternoon';
-    return 'Good Evening';
+  // Handle filter change
+  useEffect(() => {
+    if (activeFilter === 'bollywood') {
+      searchSongs('bollywood new songs');
+    } else if (activeFilter === 'punjabi') {
+      searchSongs('punjabi new songs');
+    }
+  }, [activeFilter, searchSongs]);
+
+  const handleArtistClick = (artistName: string) => {
+    navigate('/search?q=' + encodeURIComponent(artistName));
+  };
+
+  const handlePermissionGranted = () => {
+    setShowPermission(false);
+    openFolderPicker();
   };
 
   const containerVariants = {
     hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: { staggerChildren: 0.1 },
-    },
+    visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
   };
 
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
     visible: { opacity: 1, y: 0 },
   };
+
+  // Songs to display based on filter
+  const displaySongs = activeFilter === 'local' 
+    ? localSongs 
+    : (activeFilter === 'bollywood' || activeFilter === 'punjabi') && searchResults.length > 0
+      ? searchResults
+      : trendingSongs;
 
   return (
     <motion.div
@@ -48,84 +88,91 @@ export default function Home() {
       animate="visible"
       className="min-h-screen pb-32"
     >
-      {/* Hero Header */}
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0 gradient-primary opacity-10" />
-        <div className="relative px-6 py-8 md:px-8 md:py-12">
-          <motion.div variants={itemVariants}>
-            <h1 className="text-3xl md:text-4xl font-bold text-foreground">
-              {greeting()} 👋
-            </h1>
-            <p className="text-muted-foreground mt-2">
-              What would you like to listen to?
-            </p>
-          </motion.div>
+      {/* Filter Chips */}
+      <motion.div variants={itemVariants} className="px-4 md:px-6 pt-4">
+        <FilterChips 
+          chips={filterChips} 
+          activeChip={activeFilter} 
+          onChange={setActiveFilter} 
+        />
+      </motion.div>
 
-          {/* Quick Actions */}
-          <motion.div variants={itemVariants} className="flex gap-3 mt-6 flex-wrap">
-            <Button
-              variant="secondary"
-              className="gap-2"
-              onClick={() => navigate('/search')}
-            >
-              <Search className="w-4 h-4" />
-              Search Songs
-            </Button>
-            <Button
-              variant="secondary"
-              className="gap-2"
-              onClick={() => navigate('/library')}
-            >
-              <Upload className="w-4 h-4" />
-              Import Music
-            </Button>
-            <Button
-              variant="secondary"
-              className="gap-2"
-              onClick={() => navigate('/sync')}
-            >
-              <Radio className="w-4 h-4" />
-              Sync Session
-            </Button>
-          </motion.div>
+      {/* Trending Songs Section */}
+      <motion.section variants={itemVariants} className="mt-6">
+        <div className="flex items-center justify-between px-4 md:px-6 mb-4">
+          <h2 className="text-xl font-bold text-foreground">Trending Songs</h2>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="text-muted-foreground bg-surface rounded-full px-4"
+            onClick={() => navigate('/search')}
+          >
+            View All
+          </Button>
         </div>
-      </div>
-
-      {/* Quick Playlists Grid */}
-      <motion.section variants={itemVariants} className="px-6 md:px-8 mt-4">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {samplePlaylists.slice(0, 4).map((playlist) => (
-            <button
-              key={playlist.id}
-              onClick={() => {
-                playPlaylist(playlist.songs);
-              }}
-              className="flex items-center gap-3 bg-surface rounded-lg overflow-hidden hover:bg-surface-hover transition-colors group"
-            >
-              <img
-                src={playlist.artwork}
-                alt={playlist.name}
-                className="w-12 h-12 object-cover"
-              />
-              <span className="font-medium text-sm text-foreground truncate pr-3">
-                {playlist.name}
-              </span>
-              <div className="ml-auto mr-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center shadow-lg">
-                  <Play className="w-4 h-4 text-primary-foreground ml-0.5" />
+        
+        <div className="overflow-x-auto scrollbar-hide">
+          <div className="flex gap-3 px-4 md:px-6 pb-2">
+            {isLoadingTrending || isSearching ? (
+              [...Array(5)].map((_, i) => (
+                <div key={i} className="flex-shrink-0 w-40 md:w-44">
+                  <div className="aspect-square rounded-xl bg-surface animate-pulse" />
+                  <div className="h-4 bg-surface rounded mt-3 w-3/4" />
+                  <div className="h-3 bg-surface rounded mt-2 w-1/2" />
                 </div>
-              </div>
-            </button>
-          ))}
+              ))
+            ) : displaySongs.length > 0 ? (
+              displaySongs.slice(0, 10).map((song, index) => (
+                <TrendingCard
+                  key={song.id}
+                  song={song}
+                  onPlay={() => playPlaylist(displaySongs, index)}
+                  isActive={currentSong?.id === song.id}
+                  isPlaying={isPlaying}
+                  showPremium={index < 3}
+                />
+              ))
+            ) : (
+              <p className="text-muted-foreground text-sm">No songs found</p>
+            )}
+          </div>
         </div>
       </motion.section>
 
-      {/* Your Local Music */}
+      {/* Featured Artists Section */}
+      <motion.section variants={itemVariants} className="mt-8">
+        <div className="flex items-center justify-between px-4 md:px-6 mb-4">
+          <h2 className="text-xl font-bold text-foreground">Popular Artists</h2>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="text-muted-foreground bg-surface rounded-full px-4"
+          >
+            View All
+          </Button>
+        </div>
+        
+        <div className="overflow-x-auto scrollbar-hide">
+          <div className="flex gap-3 px-4 md:px-6 pb-2">
+            {featuredArtists.map((artist) => (
+              <ArtistCard
+                key={artist.name}
+                name={artist.name}
+                image={artist.image}
+                label={artist.label}
+                onClick={() => handleArtistClick(artist.name)}
+              />
+            ))}
+          </div>
+        </div>
+      </motion.section>
+
+      {/* Local Songs Section */}
       {localSongs.length > 0 && (
-        <motion.section variants={itemVariants} className="px-6 md:px-8 mt-8">
+        <motion.section variants={itemVariants} className="mt-8 px-4 md:px-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-foreground">
-              <Music className="w-5 h-5 inline mr-2" />
+            <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+              <Music className="w-5 h-5" />
               Your Local Music
             </h2>
             <Button 
@@ -154,94 +201,34 @@ export default function Home() {
         </motion.section>
       )}
 
-      {/* Trending Indian Songs */}
-      <motion.section variants={itemVariants} className="px-6 md:px-8 mt-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-foreground">🔥 Trending Hindi Songs</h2>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="text-muted-foreground"
-            onClick={() => navigate('/search')}
-          >
-            Browse More <ChevronRight className="w-4 h-4 ml-1" />
-          </Button>
-        </div>
-        {isLoadingTrending ? (
-          <div className="flex items-center justify-center py-12">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-              className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full"
-            />
-          </div>
-        ) : trendingSongs.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {trendingSongs.slice(0, 10).map((song, index) => (
+      {/* More Trending */}
+      {trendingSongs.length > 10 && activeFilter !== 'local' && (
+        <motion.section variants={itemVariants} className="mt-8 px-4 md:px-6">
+          <h2 className="text-xl font-bold text-foreground mb-4">🔥 Hot Right Now</h2>
+          <div className="bg-card rounded-xl overflow-hidden">
+            {trendingSongs.slice(10, 20).map((song, index) => (
               <SongCard
                 key={song.id}
                 song={song}
-                variant="grid"
+                index={index + 10}
+                variant="list"
                 isPlaying={isPlaying}
                 isActive={currentSong?.id === song.id}
-                onPlay={() => playPlaylist(trendingSongs, index)}
+                onPlay={() => playPlaylist(trendingSongs, index + 10)}
                 onAddToQueue={() => addToQueue(song)}
               />
             ))}
           </div>
-        ) : (
-          <div className="text-center py-8 text-muted-foreground">
-            <p>Unable to load trending songs</p>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="mt-2"
-              onClick={() => fetchTrending()}
-            >
-              Retry
-            </Button>
-          </div>
-        )}
-      </motion.section>
+        </motion.section>
+      )}
 
-      {/* Featured Playlists */}
-      <motion.section variants={itemVariants} className="px-6 md:px-8 mt-10">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-foreground">Featured Playlists</h2>
-          <Button variant="ghost" size="sm" className="text-muted-foreground">
-            See All <ChevronRight className="w-4 h-4 ml-1" />
-          </Button>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          {samplePlaylists.map((playlist) => (
-            <PlaylistCard
-              key={playlist.id}
-              playlist={playlist}
-              onPlay={() => playPlaylist(playlist.songs)}
-              onClick={() => navigate(`/playlist/${playlist.id}`)}
-            />
-          ))}
-        </div>
-      </motion.section>
-
-      {/* Quick Access to Search */}
-      <motion.section variants={itemVariants} className="px-6 md:px-8 mt-10">
-        <div className="bg-gradient-to-r from-primary/20 to-accent/20 rounded-xl p-6 text-center">
-          <h3 className="text-lg font-semibold text-foreground mb-2">
-            🎵 Search for any song
-          </h3>
-          <p className="text-muted-foreground text-sm mb-4">
-            Search Hindi, Punjabi, Bollywood, and more songs
-          </p>
-          <Button 
-            className="gradient-primary text-primary-foreground"
-            onClick={() => navigate('/search')}
-          >
-            <Search className="w-4 h-4 mr-2" />
-            Start Searching
-          </Button>
-        </div>
-      </motion.section>
+      {/* Storage Permission Modal */}
+      {showPermission && (
+        <StoragePermission 
+          onGranted={handlePermissionGranted}
+          onDismiss={() => setShowPermission(false)}
+        />
+      )}
     </motion.div>
   );
 }
