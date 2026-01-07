@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useReducer, useCallback, useRef, useEffect } from 'react';
 import { Howl } from 'howler';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import type { Song, PlayerState, RepeatMode } from '@/types/music';
 
 interface PlayerContextType extends PlayerState {
@@ -107,13 +109,40 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }, 250);
   }, [clearTimeInterval]);
 
-  const loadSong = useCallback((song: Song) => {
+  const loadSong = useCallback(async (song: Song) => {
     if (howlRef.current) {
       howlRef.current.unload();
     }
 
+    let audioUrl = song.url;
+
+    // If it's a YouTube song, fetch the audio URL from edge function
+    if (song.id.startsWith('yt-')) {
+      const videoId = song.id.replace('yt-', '');
+      toast.loading('Loading song...', { id: 'loading-song' });
+      
+      try {
+        const { data, error } = await supabase.functions.invoke('youtube-audio', {
+          body: { videoId }
+        });
+
+        if (error || !data?.audioUrl) {
+          toast.error('Could not load this song. Try another one.', { id: 'loading-song' });
+          console.error('Failed to get audio URL:', error || data?.error);
+          return;
+        }
+
+        audioUrl = data.audioUrl;
+        toast.dismiss('loading-song');
+      } catch (err) {
+        toast.error('Failed to load song', { id: 'loading-song' });
+        console.error('Error fetching audio:', err);
+        return;
+      }
+    }
+
     howlRef.current = new Howl({
-      src: [song.url],
+      src: [audioUrl],
       html5: true,
       volume: state.isMuted ? 0 : state.volume,
       onload: () => {
@@ -135,10 +164,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       },
       onloaderror: (_, error) => {
         console.error('Howler load error:', error);
+        toast.error('Failed to load audio');
         dispatch({ type: 'SET_PLAYING', payload: false });
       },
       onplayerror: (_, error) => {
         console.error('Howler play error:', error);
+        toast.error('Failed to play audio');
         dispatch({ type: 'SET_PLAYING', payload: false });
       },
     });
@@ -147,7 +178,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_CURRENT_TIME', payload: 0 });
   }, [state.volume, state.isMuted, startTimeInterval, clearTimeInterval]);
 
-  const handleSongEnd = useCallback(() => {
+  const handleSongEnd = useCallback(async () => {
     const { repeat, queue, queueIndex, shuffle } = state;
 
     if (repeat === 'one') {
@@ -175,7 +206,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
 
     dispatch({ type: 'SET_QUEUE_INDEX', payload: nextIndex });
-    loadSong(queue[nextIndex]);
+    await loadSong(queue[nextIndex]);
     howlRef.current?.play();
   }, [state, loadSong]);
 
@@ -195,10 +226,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const play = useCallback((song?: Song) => {
+  const play = useCallback(async (song?: Song) => {
     if (song) {
-      loadSong(song);
-      setTimeout(() => howlRef.current?.play(), 100);
+      await loadSong(song);
+      howlRef.current?.play();
     } else if (howlRef.current) {
       howlRef.current.play();
     }
@@ -216,7 +247,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
   }, [pause]);
 
-  const next = useCallback(() => {
+  const next = useCallback(async () => {
     const { queue, queueIndex, shuffle, repeat } = state;
     if (queue.length === 0) return;
 
@@ -239,11 +270,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
 
     dispatch({ type: 'SET_QUEUE_INDEX', payload: nextIndex });
-    loadSong(queue[nextIndex]);
-    setTimeout(() => howlRef.current?.play(), 100);
+    await loadSong(queue[nextIndex]);
+    howlRef.current?.play();
   }, [state, loadSong]);
 
-  const previous = useCallback(() => {
+  const previous = useCallback(async () => {
     const { queue, queueIndex, currentTime } = state;
     
     // If more than 3 seconds in, restart current song
@@ -261,8 +292,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
 
     dispatch({ type: 'SET_QUEUE_INDEX', payload: prevIndex });
-    loadSong(queue[prevIndex]);
-    setTimeout(() => howlRef.current?.play(), 100);
+    await loadSong(queue[prevIndex]);
+    howlRef.current?.play();
   }, [state, loadSong]);
 
   const seek = useCallback((time: number) => {
@@ -306,11 +337,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_PLAYING', payload: false });
   }, [clearTimeInterval]);
 
-  const playPlaylist = useCallback((songs: Song[], startIndex = 0) => {
+  const playPlaylist = useCallback(async (songs: Song[], startIndex = 0) => {
     dispatch({ type: 'SET_QUEUE', payload: songs });
     dispatch({ type: 'SET_QUEUE_INDEX', payload: startIndex });
-    loadSong(songs[startIndex]);
-    setTimeout(() => howlRef.current?.play(), 100);
+    await loadSong(songs[startIndex]);
+    howlRef.current?.play();
   }, [loadSong]);
 
   const removefromQueue = useCallback((index: number) => {
