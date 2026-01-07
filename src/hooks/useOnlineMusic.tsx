@@ -2,48 +2,43 @@ import { useState, useCallback } from 'react';
 import type { Song } from '@/types/music';
 import { toast } from 'sonner';
 
-// JioSaavn API endpoints (using public API)
-const SAAVN_API = 'https://saavn.dev/api';
+// YouTube Data API
+const YOUTUBE_API_KEY = 'AIzaSyDm5ecl-qgSbq6P6dWtSUFpL4_Cj7Qcjcw';
+const YOUTUBE_API = 'https://www.googleapis.com/youtube/v3';
 
-interface SaavnSong {
-  id: string;
-  name: string;
-  artists: { primary: { name: string }[] };
-  album: { name: string };
-  duration: number;
-  image: { url: string }[];
-  downloadUrl: { url: string; quality: string }[];
-  language: string;
-  year: string;
-}
-
-interface SaavnSearchResult {
-  success: boolean;
-  data: {
-    results: SaavnSong[];
+interface YouTubeSearchItem {
+  id: { videoId: string };
+  snippet: {
+    title: string;
+    channelTitle: string;
+    thumbnails: {
+      high: { url: string };
+      medium: { url: string };
+      default: { url: string };
+    };
+    publishedAt: string;
   };
 }
 
-function transformSaavnSong(song: SaavnSong): Song {
-  // Get the best quality download URL
-  const downloadUrl = song.downloadUrl?.find(d => d.quality === '320kbps')?.url ||
-                      song.downloadUrl?.find(d => d.quality === '160kbps')?.url ||
-                      song.downloadUrl?.[0]?.url || '';
-  
-  // Get the best quality image
-  const artwork = song.image?.find(i => i.url?.includes('500x500'))?.url ||
-                  song.image?.[song.image.length - 1]?.url || '';
+interface YouTubeSearchResponse {
+  items: YouTubeSearchItem[];
+}
+
+function transformYouTubeSong(item: YouTubeSearchItem): Song {
+  const thumbnail = item.snippet.thumbnails.high?.url || 
+                    item.snippet.thumbnails.medium?.url || 
+                    item.snippet.thumbnails.default?.url || '';
   
   return {
-    id: `saavn-${song.id}`,
-    title: song.name,
-    artist: song.artists?.primary?.map(a => a.name).join(', ') || 'Unknown Artist',
-    album: song.album?.name || '',
-    duration: song.duration || 0,
-    artwork: artwork,
-    url: downloadUrl,
-    genre: song.language || 'Indian',
-    year: parseInt(song.year) || undefined,
+    id: `yt-${item.id.videoId}`,
+    title: item.snippet.title.replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '').trim(),
+    artist: item.snippet.channelTitle.replace(' - Topic', '').replace('VEVO', '').trim(),
+    album: '',
+    duration: 0, // YouTube API doesn't provide duration in search
+    artwork: thumbnail,
+    url: `https://www.youtube.com/watch?v=${item.id.videoId}`,
+    genre: 'Music',
+    year: new Date(item.snippet.publishedAt).getFullYear(),
     source: 'online',
   };
 }
@@ -63,22 +58,25 @@ export function useOnlineMusic() {
     setIsSearching(true);
     try {
       const response = await fetch(
-        `${SAAVN_API}/search/songs?query=${encodeURIComponent(query)}&limit=20`
+        `${YOUTUBE_API}/search?part=snippet&q=${encodeURIComponent(query + ' official audio')}&type=video&videoCategoryId=10&maxResults=20&key=${YOUTUBE_API_KEY}`
       );
       
-      if (!response.ok) throw new Error('Search failed');
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Search failed');
+      }
       
-      const data: SaavnSearchResult = await response.json();
+      const data: YouTubeSearchResponse = await response.json();
       
-      if (data.success && data.data?.results) {
-        const songs = data.data.results.map(transformSaavnSong);
+      if (data.items) {
+        const songs = data.items.map(transformYouTubeSong);
         setSearchResults(songs);
       } else {
         setSearchResults([]);
       }
     } catch (error) {
       console.error('Search error:', error);
-      toast.error('Failed to search. Try again.');
+      toast.error('Search failed. Please try again.');
       setSearchResults([]);
     } finally {
       setIsSearching(false);
@@ -88,20 +86,20 @@ export function useOnlineMusic() {
   const fetchTrending = useCallback(async () => {
     setIsLoadingTrending(true);
     try {
-      // Search for popular Hindi songs
-      const queries = ['arijit singh', 'latest hindi songs', 'bollywood hits'];
+      // Search for trending Hindi songs
+      const queries = ['latest hindi songs 2024', 'bollywood hits', 'punjabi songs new'];
       const randomQuery = queries[Math.floor(Math.random() * queries.length)];
       
       const response = await fetch(
-        `${SAAVN_API}/search/songs?query=${encodeURIComponent(randomQuery)}&limit=15`
+        `${YOUTUBE_API}/search?part=snippet&q=${encodeURIComponent(randomQuery)}&type=video&videoCategoryId=10&maxResults=15&key=${YOUTUBE_API_KEY}`
       );
       
       if (!response.ok) throw new Error('Failed to fetch trending');
       
-      const data: SaavnSearchResult = await response.json();
+      const data: YouTubeSearchResponse = await response.json();
       
-      if (data.success && data.data?.results) {
-        const songs = data.data.results.map(transformSaavnSong);
+      if (data.items) {
+        const songs = data.items.map(transformYouTubeSong);
         setTrendingSongs(songs);
       }
     } catch (error) {
@@ -113,12 +111,14 @@ export function useOnlineMusic() {
 
   const getSongsByAlbum = useCallback(async (albumId: string): Promise<Song[]> => {
     try {
-      const response = await fetch(`${SAAVN_API}/albums?id=${albumId}`);
+      const response = await fetch(
+        `${YOUTUBE_API}/search?part=snippet&q=${encodeURIComponent(albumId)}&type=video&videoCategoryId=10&maxResults=20&key=${YOUTUBE_API_KEY}`
+      );
       if (!response.ok) throw new Error('Failed to fetch album');
       
-      const data = await response.json();
-      if (data.success && data.data?.songs) {
-        return data.data.songs.map(transformSaavnSong);
+      const data: YouTubeSearchResponse = await response.json();
+      if (data.items) {
+        return data.items.map(transformYouTubeSong);
       }
       return [];
     } catch (error) {
@@ -129,12 +129,24 @@ export function useOnlineMusic() {
 
   const getPlaylistSongs = useCallback(async (playlistId: string): Promise<Song[]> => {
     try {
-      const response = await fetch(`${SAAVN_API}/playlists?id=${playlistId}`);
+      const response = await fetch(
+        `${YOUTUBE_API}/playlistItems?part=snippet&playlistId=${playlistId}&maxResults=50&key=${YOUTUBE_API_KEY}`
+      );
       if (!response.ok) throw new Error('Failed to fetch playlist');
       
       const data = await response.json();
-      if (data.success && data.data?.songs) {
-        return data.data.songs.map(transformSaavnSong);
+      if (data.items) {
+        return data.items.map((item: any) => ({
+          id: `yt-${item.snippet.resourceId.videoId}`,
+          title: item.snippet.title,
+          artist: item.snippet.channelTitle,
+          album: '',
+          duration: 0,
+          artwork: item.snippet.thumbnails?.high?.url || '',
+          url: `https://www.youtube.com/watch?v=${item.snippet.resourceId.videoId}`,
+          genre: 'Music',
+          source: 'online' as const,
+        }));
       }
       return [];
     } catch (error) {
