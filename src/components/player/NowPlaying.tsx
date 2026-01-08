@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
+import { AspectRatio } from '@/components/ui/aspect-ratio';
 
 export default function NowPlaying() {
   const navigate = useNavigate();
@@ -48,6 +49,9 @@ export default function NowPlaying() {
     navigate('/');
     return null;
   }
+
+  const isYouTube = currentSong.id.startsWith('yt-');
+  const youtubeId = isYouTube ? currentSong.id.replace('yt-', '') : '';
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
@@ -111,34 +115,51 @@ export default function NowPlaying() {
           </Button>
         </div>
 
-        {/* Album Art */}
+        {/* Media */}
         <div className="flex-1 flex items-center justify-center px-8 py-4">
-          <motion.div
-            animate={{ rotate: isPlaying ? 360 : 0 }}
-            transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-            style={{ animationPlayState: isPlaying ? 'running' : 'paused' }}
-            className={cn(
-              'relative w-full max-w-[320px] aspect-square rounded-full overflow-hidden shadow-2xl',
-              !isPlaying && 'paused'
-            )}
-          >
-            {currentSong.artwork ? (
-              <img
-                src={currentSong.artwork}
-                alt={currentSong.title}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full gradient-primary flex items-center justify-center">
-                <span className="text-8xl">🎵</span>
-              </div>
-            )}
-            {/* Vinyl effect */}
-            <div className="absolute inset-0 rounded-full border-4 border-foreground/10" />
-            <div className="absolute inset-[35%] rounded-full bg-background/90 flex items-center justify-center">
-              <div className="w-4 h-4 rounded-full bg-foreground/20" />
+          {isYouTube ? (
+            <div className="w-full max-w-[720px]">
+              <AspectRatio
+                ratio={16 / 9}
+                className="overflow-hidden rounded-xl border border-border bg-muted"
+              >
+                <iframe
+                  title={currentSong.title}
+                  src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&playsinline=1&controls=1&rel=0`}
+                  className="h-full w-full"
+                  allow="autoplay; encrypted-media; picture-in-picture"
+                  allowFullScreen
+                />
+              </AspectRatio>
             </div>
-          </motion.div>
+          ) : (
+            <motion.div
+              animate={{ rotate: isPlaying ? 360 : 0 }}
+              transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+              style={{ animationPlayState: isPlaying ? 'running' : 'paused' }}
+              className={cn(
+                'relative w-full max-w-[320px] aspect-square rounded-full overflow-hidden shadow-2xl',
+                !isPlaying && 'paused'
+              )}
+            >
+              {currentSong.artwork ? (
+                <img
+                  src={currentSong.artwork}
+                  alt={currentSong.title}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full gradient-primary flex items-center justify-center">
+                  <span className="text-8xl">🎵</span>
+                </div>
+              )}
+              {/* Vinyl effect */}
+              <div className="absolute inset-0 rounded-full border-4 border-foreground/10" />
+              <div className="absolute inset-[35%] rounded-full bg-background/90 flex items-center justify-center">
+                <div className="w-4 h-4 rounded-full bg-foreground/20" />
+              </div>
+            </motion.div>
+          )}
         </div>
 
         {/* Song Info */}
@@ -163,19 +184,21 @@ export default function NowPlaying() {
         </div>
 
         {/* Progress */}
-        <div className="px-8 mt-8">
-          <Slider
-            value={[currentTime]}
-            max={duration || 100}
-            step={0.1}
-            onValueChange={([value]) => seek(value)}
-            className="cursor-pointer"
-          />
-          <div className="flex justify-between mt-2">
-            <span className="text-xs text-muted-foreground">{formatTime(currentTime)}</span>
-            <span className="text-xs text-muted-foreground">{formatTime(duration)}</span>
+        {!isYouTube && (
+          <div className="px-8 mt-8">
+            <Slider
+              value={[currentTime]}
+              max={duration || 100}
+              step={0.1}
+              onValueChange={([value]) => seek(value)}
+              className="cursor-pointer"
+            />
+            <div className="flex justify-between mt-2">
+              <span className="text-xs text-muted-foreground">{formatTime(currentTime)}</span>
+              <span className="text-xs text-muted-foreground">{formatTime(duration)}</span>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Controls */}
         <div className="flex items-center justify-center gap-4 mt-6 px-8">
@@ -200,17 +223,33 @@ export default function NowPlaying() {
             <SkipBack className="w-7 h-7" />
           </Button>
 
-          <Button
-            onClick={toggle}
-            size="icon"
-            className="h-16 w-16 rounded-full gradient-primary text-primary-foreground hover:opacity-90 glow-primary"
-          >
-            {isPlaying ? (
-              <Pause className="w-8 h-8" />
-            ) : (
-              <Play className="w-8 h-8 ml-1" />
-            )}
-          </Button>
+          {isYouTube ? (
+            <Button
+              variant="secondary"
+              onClick={() =>
+                window.open(
+                  `https://www.youtube.com/watch?v=${youtubeId}`,
+                  '_blank',
+                  'noopener,noreferrer'
+                )
+              }
+              className="h-12 px-6"
+            >
+              Open in YouTube
+            </Button>
+          ) : (
+            <Button
+              onClick={toggle}
+              size="icon"
+              className="h-16 w-16 rounded-full gradient-primary text-primary-foreground hover:opacity-90 glow-primary"
+            >
+              {isPlaying ? (
+                <Pause className="w-8 h-8" />
+              ) : (
+                <Play className="w-8 h-8 ml-1" />
+              )}
+            </Button>
+          )}
 
           <Button
             variant="ghost"
@@ -239,27 +278,29 @@ export default function NowPlaying() {
         </div>
 
         {/* Volume */}
-        <div className="flex items-center justify-center gap-4 mt-6 px-8">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleMute}
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
-          >
-            {isMuted || volume === 0 ? (
-              <VolumeX className="w-4 h-4" />
-            ) : (
-              <Volume2 className="w-4 h-4" />
-            )}
-          </Button>
-          <Slider
-            value={[isMuted ? 0 : volume]}
-            max={1}
-            step={0.01}
-            onValueChange={([value]) => setVolume(value)}
-            className="w-32 cursor-pointer"
-          />
-        </div>
+        {!isYouTube && (
+          <div className="flex items-center justify-center gap-4 mt-6 px-8">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleMute}
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            >
+              {isMuted || volume === 0 ? (
+                <VolumeX className="w-4 h-4" />
+              ) : (
+                <Volume2 className="w-4 h-4" />
+              )}
+            </Button>
+            <Slider
+              value={[isMuted ? 0 : volume]}
+              max={1}
+              step={0.01}
+              onValueChange={([value]) => setVolume(value)}
+              className="w-32 cursor-pointer"
+            />
+          </div>
+        )}
 
         {/* Bottom Actions */}
         <div className="flex items-center justify-center gap-8 mt-8 pb-8">

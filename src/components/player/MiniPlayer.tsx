@@ -29,6 +29,8 @@ export default function MiniPlayer() {
 
   if (!currentSong) return null;
 
+  const isYouTube = currentSong.id.startsWith('yt-');
+
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   const formatTime = (seconds: number) => {
@@ -99,12 +101,14 @@ export default function MiniPlayer() {
           </Button>
 
           <Button
-            onClick={toggle}
+            onClick={isYouTube ? handleExpandPlayer : toggle}
             variant="ghost"
             size="icon"
             className="h-10 w-10 text-foreground"
           >
-            {isPlaying ? (
+            {isYouTube ? (
+              <ChevronUp className="w-6 h-6" />
+            ) : isPlaying ? (
               <Pause className="w-6 h-6" />
             ) : (
               <Play className="w-6 h-6 ml-0.5" fill="currentColor" />

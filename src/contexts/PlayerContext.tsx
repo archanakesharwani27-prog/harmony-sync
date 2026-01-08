@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useReducer, useCallback, useRef, useEffect } from 'react';
 import { Howl } from 'howler';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { Song, PlayerState, RepeatMode } from '@/types/music';
 
@@ -109,74 +108,64 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }, 250);
   }, [clearTimeInterval]);
 
-  const loadSong = useCallback(async (song: Song) => {
-    if (howlRef.current) {
-      howlRef.current.unload();
-    }
+  const loadSong = useCallback(
+    async (song: Song) => {
+      if (howlRef.current) {
+        howlRef.current.unload();
+        howlRef.current = null;
+      }
 
-    let audioUrl = song.url;
+      clearTimeInterval();
+      dispatch({ type: 'SET_PLAYING', payload: false });
 
-    // If it's a YouTube song, fetch the audio URL from edge function
-    if (song.id.startsWith('yt-')) {
-      const videoId = song.id.replace('yt-', '');
-      toast.loading('Loading song...', { id: 'loading-song' });
-      
-      try {
-        const { data, error } = await supabase.functions.invoke('youtube-audio', {
-          body: { videoId }
-        });
-
-        if (error || !data?.audioUrl) {
-          toast.error('Could not load this song. Try another one.', { id: 'loading-song' });
-          console.error('Failed to get audio URL:', error || data?.error);
-          return;
-        }
-
-        audioUrl = data.audioUrl;
-        toast.dismiss('loading-song');
-      } catch (err) {
-        toast.error('Failed to load song', { id: 'loading-song' });
-        console.error('Error fetching audio:', err);
+      // YouTube tracks: keep them as video playback (no audio extraction)
+      if (song.id.startsWith('yt-')) {
+        dispatch({ type: 'SET_SONG', payload: song });
+        dispatch({ type: 'SET_CURRENT_TIME', payload: 0 });
+        dispatch({ type: 'SET_DURATION', payload: 0 });
         return;
       }
-    }
 
-    howlRef.current = new Howl({
-      src: [audioUrl],
-      html5: true,
-      volume: state.isMuted ? 0 : state.volume,
-      onload: () => {
-        dispatch({ type: 'SET_DURATION', payload: howlRef.current?.duration() || 0 });
-      },
-      onplay: () => {
-        dispatch({ type: 'SET_PLAYING', payload: true });
-        startTimeInterval();
-        updateMediaSession(song);
-      },
-      onpause: () => {
-        dispatch({ type: 'SET_PLAYING', payload: false });
-        clearTimeInterval();
-      },
-      onend: () => {
-        dispatch({ type: 'SET_PLAYING', payload: false });
-        clearTimeInterval();
-        handleSongEnd();
-      },
-      onloaderror: (_, error) => {
-        console.error('Howler load error:', error);
-        toast.error('Failed to load audio');
-        dispatch({ type: 'SET_PLAYING', payload: false });
-      },
-      onplayerror: (_, error) => {
-        console.error('Howler play error:', error);
-        toast.error('Failed to play audio');
-        dispatch({ type: 'SET_PLAYING', payload: false });
-      },
-    });
+      const audioUrl = song.url;
 
-    dispatch({ type: 'SET_SONG', payload: song });
-    dispatch({ type: 'SET_CURRENT_TIME', payload: 0 });
-  }, [state.volume, state.isMuted, startTimeInterval, clearTimeInterval]);
+      howlRef.current = new Howl({
+        src: [audioUrl],
+        html5: true,
+        volume: state.isMuted ? 0 : state.volume,
+        onload: () => {
+          dispatch({ type: 'SET_DURATION', payload: howlRef.current?.duration() || 0 });
+        },
+        onplay: () => {
+          dispatch({ type: 'SET_PLAYING', payload: true });
+          startTimeInterval();
+          updateMediaSession(song);
+        },
+        onpause: () => {
+          dispatch({ type: 'SET_PLAYING', payload: false });
+          clearTimeInterval();
+        },
+        onend: () => {
+          dispatch({ type: 'SET_PLAYING', payload: false });
+          clearTimeInterval();
+          handleSongEnd();
+        },
+        onloaderror: (_, error) => {
+          console.error('Howler load error:', error);
+          toast.error('Failed to load audio');
+          dispatch({ type: 'SET_PLAYING', payload: false });
+        },
+        onplayerror: (_, error) => {
+          console.error('Howler play error:', error);
+          toast.error('Failed to play audio');
+          dispatch({ type: 'SET_PLAYING', payload: false });
+        },
+      });
+
+      dispatch({ type: 'SET_SONG', payload: song });
+      dispatch({ type: 'SET_CURRENT_TIME', payload: 0 });
+    },
+    [state.volume, state.isMuted, startTimeInterval, clearTimeInterval]
+  );
 
   const handleSongEnd = useCallback(async () => {
     const { repeat, queue, queueIndex, shuffle } = state;
