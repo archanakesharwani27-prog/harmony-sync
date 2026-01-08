@@ -17,11 +17,14 @@ export default function ArtistCard({ name, image, label, onClick }: ArtistCardPr
       className="relative flex-shrink-0 w-36 cursor-pointer group"
     >
       {/* Artist Image */}
-      <div className="relative aspect-[3/4] rounded-xl overflow-hidden bg-gradient-to-b from-yellow-400 to-yellow-600 mb-3">
+      <div className="relative aspect-[3/4] rounded-xl overflow-hidden bg-gradient-to-b from-primary/30 to-primary/60 mb-3">
         <img
           src={image}
           alt={name}
           className="w-full h-full object-cover"
+          onError={(e) => {
+            e.currentTarget.style.display = 'none';
+          }}
         />
         
         {/* Label Overlay */}
