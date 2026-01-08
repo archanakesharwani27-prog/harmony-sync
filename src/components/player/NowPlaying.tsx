@@ -223,33 +223,17 @@ export default function NowPlaying() {
             <SkipBack className="w-7 h-7" />
           </Button>
 
-          {isYouTube ? (
-            <Button
-              variant="secondary"
-              onClick={() =>
-                window.open(
-                  `https://www.youtube.com/watch?v=${youtubeId}`,
-                  '_blank',
-                  'noopener,noreferrer'
-                )
-              }
-              className="h-12 px-6"
-            >
-              Open in YouTube
-            </Button>
-          ) : (
-            <Button
-              onClick={toggle}
-              size="icon"
-              className="h-16 w-16 rounded-full gradient-primary text-primary-foreground hover:opacity-90 glow-primary"
-            >
-              {isPlaying ? (
-                <Pause className="w-8 h-8" />
-              ) : (
-                <Play className="w-8 h-8 ml-1" />
-              )}
-            </Button>
-          )}
+          <Button
+            onClick={toggle}
+            size="icon"
+            className="h-16 w-16 rounded-full gradient-primary text-primary-foreground hover:opacity-90 glow-primary"
+          >
+            {isPlaying ? (
+              <Pause className="w-8 h-8" />
+            ) : (
+              <Play className="w-8 h-8 ml-1" />
+            )}
+          </Button>
 
           <Button
             variant="ghost"

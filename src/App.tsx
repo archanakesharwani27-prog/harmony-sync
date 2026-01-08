@@ -12,6 +12,9 @@ import Search from "./pages/Search";
 import Library from "./pages/Library";
 import Settings from "./pages/Settings";
 import NowPlaying from "./components/player/NowPlaying";
+import Queue from "./pages/Queue";
+import Equalizer from "./pages/Equalizer";
+import Playlist from "./pages/Playlist";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +35,9 @@ const App = () => (
                 <Route path="/settings" element={<Settings />} />
               </Route>
               <Route path="/now-playing" element={<NowPlaying />} />
+              <Route path="/queue" element={<Queue />} />
+              <Route path="/equalizer" element={<Equalizer />} />
+              <Route path="/playlist/:id" element={<Playlist />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
             <MobileNav />

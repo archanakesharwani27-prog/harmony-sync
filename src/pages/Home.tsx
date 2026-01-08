@@ -21,10 +21,10 @@ const filterChips = [
 ];
 
 const featuredArtists = [
-  { name: 'Arijit Singh', image: 'https://i.scdn.co/image/ab6761610000e5eb0261696c5df3be99da6ed3f3', label: 'Featuring' },
-  { name: 'Diljit Dosanjh', image: 'https://i.scdn.co/image/ab6761610000e5eb31f6ab37e6bf690a4d9f64cd', label: 'Featuring' },
-  { name: 'AP Dhillon', image: 'https://i.scdn.co/image/ab6761610000e5eb5f066d2825c0dcb3141a7b11', label: 'Featuring' },
-  { name: 'Atif Aslam', image: 'https://i.scdn.co/image/ab6761610000e5eb92e01193d86f0fde7cfde397', label: 'Featuring' },
+  { name: 'Arijit Singh', image: 'https://c.saavncdn.com/artists/Arijit_Singh_500x500.jpg', label: 'Featuring' },
+  { name: 'Diljit Dosanjh', image: 'https://c.saavncdn.com/artists/Diljit_Dosanjh_500x500.jpg', label: 'Featuring' },
+  { name: 'AP Dhillon', image: 'https://c.saavncdn.com/artists/AP_Dhillon_000_20220405125916_500x500.jpg', label: 'Featuring' },
+  { name: 'Atif Aslam', image: 'https://c.saavncdn.com/artists/Atif_Aslam_500x500.jpg', label: 'Featuring' },
 ];
 
 export default function Home() {
