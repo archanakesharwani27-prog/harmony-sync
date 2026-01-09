@@ -18,6 +18,8 @@ import Queue from "./pages/Queue";
 import Equalizer from "./pages/Equalizer";
 import Playlist from "./pages/Playlist";
 import LikedSongs from "./pages/LikedSongs";
+import Sync from "./pages/Sync";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -42,6 +44,8 @@ const App = () => (
                     <Route path="/equalizer" element={<Equalizer />} />
                     <Route path="/playlist/:id" element={<Playlist />} />
                     <Route path="/liked" element={<LikedSongs />} />
+                    <Route path="/sync" element={<Sync />} />
+                    <Route path="/profile" element={<Profile />} />
                   </Route>
                   <Route path="/now-playing" element={<NowPlaying />} />
                   <Route path="*" element={<NotFound />} />
