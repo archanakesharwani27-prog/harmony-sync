@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, Sliders, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
+import { useEqualizer } from '@/contexts/EqualizerContext';
 
 const presets = [
   { name: 'Flat', values: [0, 0, 0, 0, 0, 0] },
@@ -17,8 +18,7 @@ const bands = ['60Hz', '230Hz', '910Hz', '3.6kHz', '14kHz', '16kHz'];
 
 export default function Equalizer() {
   const navigate = useNavigate();
-  const [values, setValues] = useState([0, 0, 0, 0, 0, 0]);
-  const [activePreset, setActivePreset] = useState('Flat');
+  const { values, activePreset, setValues, setActivePreset } = useEqualizer();
 
   const handleBandChange = (index: number, value: number[]) => {
     const newValues = [...values];

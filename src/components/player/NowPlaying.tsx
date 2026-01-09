@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { usePlayer } from '@/contexts/PlayerContext';
+import { useLikes } from '@/contexts/LikesContext';
 import { cn } from '@/lib/utils';
 import {
   Play,
@@ -25,7 +26,9 @@ import { AspectRatio } from '@/components/ui/aspect-ratio';
 
 export default function NowPlaying() {
   const navigate = useNavigate();
-  const [isLiked, setIsLiked] = useState(false);
+  const { isLiked, toggleLike } = useLikes();
+  const [ytPlaying, setYtPlaying] = useState(true);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const {
     currentSong,
     isPlaying,
@@ -124,8 +127,9 @@ export default function NowPlaying() {
                 className="overflow-hidden rounded-xl border border-border bg-muted"
               >
                 <iframe
+                  ref={iframeRef}
                   title={currentSong.title}
-                  src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&playsinline=1&controls=1&rel=0`}
+                  src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&playsinline=1&controls=1&rel=0&enablejsapi=1`}
                   className="h-full w-full"
                   allow="autoplay; encrypted-media; picture-in-picture"
                   allowFullScreen
@@ -171,13 +175,13 @@ export default function NowPlaying() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setIsLiked(!isLiked)}
+              onClick={() => toggleLike(currentSong)}
               className={cn(
                 'h-8 w-8',
-                isLiked ? 'text-primary' : 'text-muted-foreground'
+                isLiked(currentSong.id) ? 'text-primary' : 'text-muted-foreground'
               )}
             >
-              <Heart className={cn('w-5 h-5', isLiked && 'fill-current')} />
+              <Heart className={cn('w-5 h-5', isLiked(currentSong.id) && 'fill-current')} />
             </Button>
           </div>
           <p className="text-lg text-muted-foreground mt-1">{currentSong.artist}</p>
@@ -224,11 +228,22 @@ export default function NowPlaying() {
           </Button>
 
           <Button
-            onClick={toggle}
+            onClick={() => {
+              if (isYouTube && iframeRef.current) {
+                const command = ytPlaying ? 'pauseVideo' : 'playVideo';
+                iframeRef.current.contentWindow?.postMessage(
+                  JSON.stringify({ event: 'command', func: command }),
+                  '*'
+                );
+                setYtPlaying(!ytPlaying);
+              } else {
+                toggle();
+              }
+            }}
             size="icon"
             className="h-16 w-16 rounded-full gradient-primary text-primary-foreground hover:opacity-90 glow-primary"
           >
-            {isPlaying ? (
+            {(isYouTube ? ytPlaying : isPlaying) ? (
               <Pause className="w-8 h-8" />
             ) : (
               <Play className="w-8 h-8 ml-1" />
