@@ -4,13 +4,13 @@ import { Play, Pause, MoreHorizontal, Heart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Song } from '@/types/music';
 import { Button } from '@/components/ui/button';
+import { useLikes } from '@/contexts/LikesContext';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-
 interface SongCardProps {
   song: Song;
   index?: number;
@@ -32,12 +32,13 @@ export default function SongCard({
   onAddToPlaylist,
   variant = 'list',
 }: SongCardProps) {
+  const { isLiked, toggleLike } = useLikes();
+  
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
-
   if (variant === 'grid') {
     return (
       <motion.div
@@ -167,13 +168,16 @@ export default function SongCard({
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+          className={cn(
+            "h-8 w-8",
+            isLiked(song.id) ? "text-primary" : "text-muted-foreground hover:text-foreground"
+          )}
           onClick={(e) => {
             e.stopPropagation();
-            // Toggle like
+            toggleLike(song);
           }}
         >
-          <Heart className="w-4 h-4" />
+          <Heart className={cn("w-4 h-4", isLiked(song.id) && "fill-current")} />
         </Button>
 
         <DropdownMenu>
