@@ -7,6 +7,8 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { PlayerProvider } from "@/contexts/PlayerContext";
 import { LikesProvider } from "@/contexts/LikesContext";
 import { EqualizerProvider } from "@/contexts/EqualizerContext";
+import { PlaylistProvider } from "@/contexts/PlaylistContext";
+import { SyncProvider } from "@/contexts/SyncContext";
 import MainLayout from "@/components/layout/MainLayout";
 import MobileNav from "@/components/layout/MobileNav";
 import Home from "./pages/Home";
@@ -20,6 +22,7 @@ import Playlist from "./pages/Playlist";
 import LikedSongs from "./pages/LikedSongs";
 import Sync from "./pages/Sync";
 import Profile from "./pages/Profile";
+import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,29 +33,34 @@ const App = () => (
       <PlayerProvider>
         <LikesProvider>
           <EqualizerProvider>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              <BrowserRouter>
-                <Routes>
-                  <Route element={<MainLayout />}>
-                    <Route path="/" element={<Home />} />
-                    <Route path="/search" element={<Search />} />
-                    <Route path="/library" element={<Library />} />
-                    <Route path="/settings" element={<Settings />} />
-                    <Route path="/queue" element={<Queue />} />
-                    <Route path="/equalizer" element={<Equalizer />} />
-                    <Route path="/playlist/:id" element={<Playlist />} />
-                    <Route path="/liked" element={<LikedSongs />} />
-                    <Route path="/sync" element={<Sync />} />
-                    <Route path="/profile" element={<Profile />} />
-                  </Route>
-                  <Route path="/now-playing" element={<NowPlaying />} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-                <MobileNav />
-              </BrowserRouter>
-            </TooltipProvider>
+            <PlaylistProvider>
+              <SyncProvider>
+                <TooltipProvider>
+                  <Toaster />
+                  <Sonner />
+                  <BrowserRouter>
+                    <Routes>
+                      <Route element={<MainLayout />}>
+                        <Route path="/" element={<Home />} />
+                        <Route path="/search" element={<Search />} />
+                        <Route path="/library" element={<Library />} />
+                        <Route path="/settings" element={<Settings />} />
+                        <Route path="/queue" element={<Queue />} />
+                        <Route path="/equalizer" element={<Equalizer />} />
+                        <Route path="/playlist/:id" element={<Playlist />} />
+                        <Route path="/liked" element={<LikedSongs />} />
+                        <Route path="/sync" element={<Sync />} />
+                        <Route path="/profile" element={<Profile />} />
+                        <Route path="/install" element={<Install />} />
+                      </Route>
+                      <Route path="/now-playing" element={<NowPlaying />} />
+                    <Route path="*" element={<NotFound />} />
+                    </Routes>
+                    <MobileNav />
+                  </BrowserRouter>
+                </TooltipProvider>
+              </SyncProvider>
+            </PlaylistProvider>
           </EqualizerProvider>
         </LikesProvider>
       </PlayerProvider>
