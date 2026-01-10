@@ -1,32 +1,48 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Plus, ListMusic, Heart, ArrowUpDown, FolderOpen, Upload, Search, Settings } from 'lucide-react';
+import { Plus, ListMusic, Heart, ArrowUpDown, FolderOpen, Upload, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import FilterChips from '@/components/ui/FilterChips';
 import SongCard from '@/components/ui/SongCard';
 import { usePlayer } from '@/contexts/PlayerContext';
 import { useLocalMusic } from '@/hooks/useLocalMusic';
-import { samplePlaylists } from '@/data/sampleSongs';
+import { usePlaylists } from '@/contexts/PlaylistContext';
+import { useLikes } from '@/contexts/LikesContext';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 
 const libraryFilters = [
   { id: 'playlists', label: 'Playlists' },
   { id: 'songs', label: 'Songs' },
-  { id: 'artists', label: 'Artists' },
-  { id: 'albums', label: 'Albums' },
   { id: 'local', label: 'Local' },
-];
-
-const quickActions = [
-  { id: 'liked', name: 'Liked Songs', icon: Heart, count: 24, gradient: 'from-purple-600 to-blue-600' },
 ];
 
 export default function Library() {
   const navigate = useNavigate();
   const { currentSong, isPlaying, playPlaylist, addToQueue } = usePlayer();
   const { localSongs, isLoading, openFilePicker, openFolderPicker } = useLocalMusic();
+  const { playlists, createPlaylist } = usePlaylists();
+  const { likedSongs } = useLikes();
   const [activeFilter, setActiveFilter] = useState('playlists');
   const [sortBy, setSortBy] = useState('recents');
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [newPlaylistName, setNewPlaylistName] = useState('');
+
+  const handleCreatePlaylist = () => {
+    if (newPlaylistName.trim()) {
+      const playlist = createPlaylist(newPlaylistName.trim());
+      setNewPlaylistName('');
+      setShowCreateDialog(false);
+      navigate(`/playlist/${playlist.id}`);
+    }
+  };
 
   return (
     <motion.div
@@ -47,23 +63,21 @@ export default function Library() {
             <Button variant="ghost" size="icon" onClick={() => navigate('/search')}>
               <Search className="w-5 h-5" />
             </Button>
-            <Button variant="ghost" size="icon" className="gradient-primary text-primary-foreground rounded-full">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="gradient-primary text-primary-foreground rounded-full"
+              onClick={() => setShowCreateDialog(true)}
+            >
               <Plus className="w-5 h-5" />
             </Button>
           </div>
         </div>
-
-        {/* Filter Chips */}
         <div className="px-4 md:px-6 pb-2">
-          <FilterChips 
-            chips={libraryFilters} 
-            activeChip={activeFilter} 
-            onChange={setActiveFilter} 
-          />
+          <FilterChips chips={libraryFilters} activeChip={activeFilter} onChange={setActiveFilter} />
         </div>
       </div>
 
-      {/* Sort Button */}
       <div className="px-4 md:px-6 py-3">
         <button 
           className="flex items-center gap-2 text-sm text-muted-foreground"
@@ -74,56 +88,52 @@ export default function Library() {
         </button>
       </div>
 
-      {/* Content based on filter */}
       <div className="px-4 md:px-6">
-        {/* Playlists View */}
         {activeFilter === 'playlists' && (
           <div className="space-y-3">
             {/* Liked Songs */}
-            {quickActions.map((action) => (
-              <motion.button
-                key={action.id}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => navigate('/liked')}
-                className="w-full flex items-center gap-4 p-2 rounded-lg hover:bg-surface transition-colors"
-              >
-                <div className={`w-14 h-14 rounded-lg bg-gradient-to-br ${action.gradient} flex items-center justify-center`}>
-                  <action.icon className="w-6 h-6 text-white" fill="white" />
-                </div>
-                <div className="flex-1 text-left">
-                  <h4 className="font-semibold text-foreground">{action.name}</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Playlist • {action.count} songs
-                  </p>
-                </div>
-              </motion.button>
-            ))}
+            <motion.button
+              whileTap={{ scale: 0.98 }}
+              onClick={() => navigate('/liked')}
+              className="w-full flex items-center gap-4 p-2 rounded-lg hover:bg-surface transition-colors"
+            >
+              <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center">
+                <Heart className="w-6 h-6 text-white" fill="white" />
+              </div>
+              <div className="flex-1 text-left">
+                <h4 className="font-semibold text-foreground">Liked Songs</h4>
+                <p className="text-sm text-muted-foreground">Playlist • {likedSongs.length} songs</p>
+              </div>
+            </motion.button>
 
-            {/* Sample Playlists */}
-            {samplePlaylists.map((playlist) => (
+            {/* User Playlists */}
+            {playlists.map((playlist) => (
               <motion.button
                 key={playlist.id}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => navigate(`/playlist/${playlist.id}`)}
                 className="w-full flex items-center gap-4 p-2 rounded-lg hover:bg-surface transition-colors"
               >
-                <img
-                  src={playlist.artwork}
-                  alt={playlist.name}
-                  className="w-14 h-14 rounded-lg object-cover"
-                />
+                <div className="w-14 h-14 rounded-lg overflow-hidden bg-gradient-to-br from-primary to-primary/50 flex items-center justify-center">
+                  {playlist.artwork ? (
+                    <img src={playlist.artwork} alt={playlist.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <ListMusic className="w-6 h-6 text-primary-foreground" />
+                  )}
+                </div>
                 <div className="flex-1 text-left">
                   <h4 className="font-semibold text-foreground">{playlist.name}</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Playlist • {playlist.songs.length} songs
-                  </p>
+                  <p className="text-sm text-muted-foreground">Playlist • {playlist.songs.length} songs</p>
                 </div>
               </motion.button>
             ))}
+
+            {playlists.length === 0 && (
+              <p className="text-center text-muted-foreground py-8">Tap + to create your first playlist</p>
+            )}
           </div>
         )}
 
-        {/* Songs View */}
         {activeFilter === 'songs' && (
           <div>
             {localSongs.length > 0 ? (
@@ -142,53 +152,24 @@ export default function Library() {
                 ))}
               </div>
             ) : (
-              <EmptyState 
-                icon={ListMusic} 
-                title="No songs yet" 
-                subtitle="Import your local music to see it here" 
-              />
+              <EmptyState icon={ListMusic} title="No songs yet" subtitle="Import your local music to see it here" />
             )}
           </div>
         )}
 
-        {/* Local View */}
         {activeFilter === 'local' && (
           <div className="space-y-4">
-            {/* Import Buttons */}
             <div className="grid grid-cols-2 gap-3">
-              <Button
-                variant="outline"
-                className="h-24 flex-col gap-2 bg-surface border-dashed border-border"
-                onClick={openFilePicker}
-                disabled={isLoading}
-              >
+              <Button variant="outline" className="h-24 flex-col gap-2 bg-surface border-dashed" onClick={openFilePicker} disabled={isLoading}>
                 <Upload className="w-6 h-6 text-primary" />
                 <span className="text-sm">Add Files</span>
               </Button>
-              <Button
-                variant="outline"
-                className="h-24 flex-col gap-2 bg-surface border-dashed border-border"
-                onClick={openFolderPicker}
-                disabled={isLoading}
-              >
+              <Button variant="outline" className="h-24 flex-col gap-2 bg-surface border-dashed" onClick={openFolderPicker} disabled={isLoading}>
                 <FolderOpen className="w-6 h-6 text-primary" />
                 <span className="text-sm">Scan Folder</span>
               </Button>
             </div>
-
-            {isLoading && (
-              <div className="text-center py-8">
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                  className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full mx-auto mb-2"
-                />
-                <p className="text-sm text-muted-foreground">Scanning files...</p>
-              </div>
-            )}
-
-            {/* Local Songs List */}
-            {localSongs.length > 0 ? (
+            {localSongs.length > 0 && (
               <div className="bg-card rounded-xl overflow-hidden">
                 <div className="px-4 py-3 border-b border-border">
                   <p className="text-sm text-muted-foreground">{localSongs.length} local songs</p>
@@ -206,34 +187,29 @@ export default function Library() {
                   />
                 ))}
               </div>
-            ) : !isLoading && (
-              <EmptyState 
-                icon={FolderOpen} 
-                title="No local music" 
-                subtitle="Import music from your device" 
-              />
             )}
           </div>
         )}
-
-        {/* Artists View */}
-        {activeFilter === 'artists' && (
-          <EmptyState 
-            icon={ListMusic} 
-            title="No artists yet" 
-            subtitle="Start listening to discover artists" 
-          />
-        )}
-
-        {/* Albums View */}
-        {activeFilter === 'albums' && (
-          <EmptyState 
-            icon={ListMusic} 
-            title="No albums yet" 
-            subtitle="Import music to see your albums" 
-          />
-        )}
       </div>
+
+      {/* Create Playlist Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Playlist</DialogTitle>
+          </DialogHeader>
+          <Input
+            placeholder="Playlist name"
+            value={newPlaylistName}
+            onChange={(e) => setNewPlaylistName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleCreatePlaylist()}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>Cancel</Button>
+            <Button onClick={handleCreatePlaylist} disabled={!newPlaylistName.trim()}>Create</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 }
