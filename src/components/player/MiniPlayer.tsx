@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useRef, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { usePlayer } from "@/contexts/PlayerContext";
@@ -7,22 +7,51 @@ import { cn } from "@/lib/utils";
 import { Play, Pause, SkipForward, Heart, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const YouTubeMiniFrame = React.memo(function YouTubeMiniFrame({
-  title,
-  src,
-}: {
-  title: string;
-  src: string;
-}) {
-  return (
-    <iframe
-      title={title}
-      src={src}
-      className="w-full h-full pointer-events-none"
-      allow="autoplay; encrypted-media; picture-in-picture"
-    />
-  );
-});
+// Stable YouTube iframe wrapper that never re-mounts
+const YouTubeMiniFrame = React.memo(
+  function YouTubeMiniFrame({
+    videoId,
+    title,
+  }: {
+    videoId: string;
+    title: string;
+  }) {
+    const iframeRef = useRef<HTMLIFrameElement>(null);
+    const [src, setSrc] = useState("");
+
+    // Only update the src when the videoId actually changes
+    useEffect(() => {
+      const origin =
+        typeof window !== "undefined"
+          ? encodeURIComponent(window.location.origin)
+          : "";
+      const params = new URLSearchParams({
+        autoplay: "1",
+        playsinline: "1",
+        controls: "0",
+        rel: "0",
+        mute: "0",
+        enablejsapi: "1",
+      });
+      if (origin) params.set("origin", origin);
+      const newSrc = `https://www.youtube.com/embed/${videoId}?${params.toString()}`;
+      setSrc((prev) => (prev.includes(videoId) ? prev : newSrc));
+    }, [videoId]);
+
+    if (!src) return null;
+
+    return (
+      <iframe
+        ref={iframeRef}
+        title={title}
+        src={src}
+        className="w-full h-full pointer-events-none"
+        allow="autoplay; encrypted-media; picture-in-picture"
+      />
+    );
+  },
+  (prev, next) => prev.videoId === next.videoId
+);
 
 export default function MiniPlayer() {
   const navigate = useNavigate();
@@ -41,25 +70,6 @@ export default function MiniPlayer() {
     navigate("/now-playing");
   };
 
-  const youtubeSrc = useMemo(() => {
-    if (!youtubeId) return "";
-    const origin =
-      typeof window !== "undefined" ? encodeURIComponent(window.location.origin) : "";
-
-    const params = new URLSearchParams({
-      autoplay: "1",
-      playsinline: "1",
-      controls: "0",
-      rel: "0",
-      mute: "0",
-      enablejsapi: "1",
-    });
-
-    if (origin) params.set("origin", origin);
-
-    return `https://www.youtube.com/embed/${youtubeId}?${params.toString()}`;
-  }, [youtubeId]);
-
   return (
     <motion.div
       initial={{ y: 100 }}
@@ -76,7 +86,10 @@ export default function MiniPlayer() {
             seek(percent * duration);
           }}
         >
-          <motion.div className="h-full bg-primary" style={{ width: `${progress}%` }} />
+          <motion.div
+            className="h-full bg-primary"
+            style={{ width: `${progress}%` }}
+          />
         </div>
       )}
 
@@ -87,7 +100,7 @@ export default function MiniPlayer() {
             className="relative w-16 h-12 rounded overflow-hidden flex-shrink-0 bg-muted cursor-pointer"
             onClick={handleExpandPlayer}
           >
-            <YouTubeMiniFrame title={currentSong.title} src={youtubeSrc} />
+            <YouTubeMiniFrame videoId={youtubeId} title={currentSong.title} />
           </div>
         ) : (
           <button
@@ -110,11 +123,16 @@ export default function MiniPlayer() {
         )}
 
         {/* Title & Artist */}
-        <button onClick={handleExpandPlayer} className="min-w-0 flex-1 text-left">
+        <button
+          onClick={handleExpandPlayer}
+          className="min-w-0 flex-1 text-left"
+        >
           <h4 className="font-medium text-foreground truncate text-sm">
             {currentSong.title}
           </h4>
-          <p className="text-xs text-muted-foreground truncate">{currentSong.artist}</p>
+          <p className="text-xs text-muted-foreground truncate">
+            {currentSong.artist}
+          </p>
         </button>
 
         {/* Controls */}
@@ -129,7 +147,10 @@ export default function MiniPlayer() {
             onClick={() => toggleLike(currentSong)}
           >
             <Heart
-              className={cn("w-5 h-5", isLiked(currentSong.id) && "fill-current")}
+              className={cn(
+                "w-5 h-5",
+                isLiked(currentSong.id) && "fill-current"
+              )}
             />
           </Button>
 
@@ -172,4 +193,5 @@ export default function MiniPlayer() {
     </motion.div>
   );
 }
+
 

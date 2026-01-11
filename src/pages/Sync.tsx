@@ -1,19 +1,59 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Radio, Wifi, Users, Share2, Copy, LogOut, Music } from 'lucide-react';
+import { 
+  ChevronLeft, 
+  Radio, 
+  Wifi, 
+  Users, 
+  Share2, 
+  Copy, 
+  LogOut, 
+  Music,
+  Lock,
+  Unlock,
+  UserX,
+  Crown,
+  ListMusic,
+  Trash2,
+  Play,
+  Plus
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useSync } from '@/contexts/SyncContext';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function Sync() {
   const navigate = useNavigate();
-  const { session, isConnected, isHost, createSession, joinSession, leaveSession } = useSync();
+  const { 
+    session, 
+    isConnected, 
+    isHost, 
+    userId,
+    createSession, 
+    joinSession, 
+    leaveSession,
+    lockRoom,
+    kickUser,
+    transferHost,
+    playFromSharedQueue,
+    removeFromSharedQueue,
+    clearSharedQueue,
+  } = useSync();
   const [userName, setUserName] = useState('');
   const [sessionName, setSessionName] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [mode, setMode] = useState<'menu' | 'create' | 'join'>('menu');
+  const [activeTab, setActiveTab] = useState<'participants' | 'queue'>('participants');
 
   const handleCreate = async () => {
     if (!userName.trim() || !sessionName.trim()) {
@@ -53,8 +93,13 @@ export default function Sync() {
               <ChevronLeft className="w-6 h-6" />
             </Button>
             <div className="flex items-center gap-3 flex-1">
-              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-green-600 to-teal-600 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-green-600 to-teal-600 flex items-center justify-center relative">
                 <Radio className="w-6 h-6 text-white" />
+                {session.isLocked && (
+                  <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-destructive flex items-center justify-center">
+                    <Lock className="w-3 h-3 text-white" />
+                  </div>
+                )}
               </div>
               <div>
                 <h1 className="text-xl font-bold text-foreground">{session.name}</h1>
@@ -62,6 +107,7 @@ export default function Sync() {
                   <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-yellow-500'}`} />
                   <p className="text-sm text-muted-foreground">
                     {isConnected ? 'Connected' : 'Connecting...'}
+                    {isHost && ' • You are the host'}
                   </p>
                 </div>
               </div>
@@ -88,26 +134,164 @@ export default function Sync() {
             <p className="text-xs text-muted-foreground mt-2">Share this code with friends to invite them</p>
           </div>
 
-          {/* Participants */}
-          <div className="bg-card rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-4">
-              <Users className="w-5 h-5 text-primary" />
-              <h3 className="font-semibold text-foreground">Participants ({session.users.length})</h3>
+          {/* Host Controls */}
+          {isHost && (
+            <div className="bg-card rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <Crown className="w-5 h-5 text-yellow-500" />
+                <h3 className="font-semibold text-foreground">Host Controls</h3>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant={session.isLocked ? "destructive" : "outline"}
+                  size="sm"
+                  onClick={() => lockRoom(!session.isLocked)}
+                  className="gap-2"
+                >
+                  {session.isLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+                  {session.isLocked ? 'Unlock Room' : 'Lock Room'}
+                </Button>
+              </div>
             </div>
-            <div className="space-y-3">
-              {session.users.map((user) => (
-                <div key={user.id} className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/50 flex items-center justify-center">
-                    <span className="text-primary-foreground font-bold">{user.name.charAt(0).toUpperCase()}</span>
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium text-foreground">{user.name}</p>
-                    {user.isHost && <p className="text-xs text-primary">Host</p>}
-                  </div>
-                </div>
-              ))}
-            </div>
+          )}
+
+          {/* Tabs */}
+          <div className="flex gap-2 bg-muted p-1 rounded-lg">
+            <button
+              onClick={() => setActiveTab('participants')}
+              className={cn(
+                "flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2",
+                activeTab === 'participants' 
+                  ? "bg-background text-foreground shadow" 
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Users className="w-4 h-4" />
+              Participants ({session.users.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('queue')}
+              className={cn(
+                "flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2",
+                activeTab === 'queue' 
+                  ? "bg-background text-foreground shadow" 
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <ListMusic className="w-4 h-4" />
+              Queue ({session.sharedQueue.length})
+            </button>
           </div>
+
+          {/* Participants Tab */}
+          {activeTab === 'participants' && (
+            <div className="bg-card rounded-xl p-4">
+              <div className="space-y-3">
+                {session.users.map((user) => (
+                  <div key={user.id} className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/50 flex items-center justify-center">
+                      <span className="text-primary-foreground font-bold">{user.name.charAt(0).toUpperCase()}</span>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-foreground">{user.name}</p>
+                        {user.id === userId && <span className="text-xs text-muted-foreground">(You)</span>}
+                      </div>
+                      {user.isHost && (
+                        <div className="flex items-center gap-1 text-yellow-500">
+                          <Crown className="w-3 h-3" />
+                          <span className="text-xs">Host</span>
+                        </div>
+                      )}
+                    </div>
+                    {isHost && user.id !== userId && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <span className="sr-only">User actions</span>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                            </svg>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => transferHost(user.id)} className="gap-2">
+                            <Crown className="w-4 h-4 text-yellow-500" />
+                            Make Host
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => kickUser(user.id)} className="gap-2 text-destructive">
+                            <UserX className="w-4 h-4" />
+                            Remove
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Queue Tab */}
+          {activeTab === 'queue' && (
+            <div className="bg-card rounded-xl p-4">
+              {isHost && session.sharedQueue.length > 0 && (
+                <div className="flex justify-end mb-4">
+                  <Button variant="outline" size="sm" onClick={clearSharedQueue} className="gap-2 text-destructive">
+                    <Trash2 className="w-4 h-4" />
+                    Clear Queue
+                  </Button>
+                </div>
+              )}
+              {session.sharedQueue.length === 0 ? (
+                <div className="text-center py-8">
+                  <ListMusic className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">Shared queue is empty</p>
+                  <p className="text-xs text-muted-foreground mt-1">Songs added by participants will appear here</p>
+                </div>
+              ) : (
+                <ScrollArea className="max-h-64">
+                  <div className="space-y-2">
+                    {session.sharedQueue.map((song, index) => (
+                      <div key={`${song.id}-${index}`} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
+                        <div className="w-10 h-10 rounded overflow-hidden bg-muted flex-shrink-0">
+                          {song.artwork ? (
+                            <img src={song.artwork} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">🎵</div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm text-foreground truncate">{song.title}</p>
+                          <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
+                        </div>
+                        {isHost && (
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => playFromSharedQueue(index)}
+                            >
+                              <Play className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive"
+                              onClick={() => removeFromSharedQueue(index)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </div>
+          )}
 
           {/* Now Playing */}
           <div className="bg-card rounded-xl p-4">
@@ -212,6 +396,22 @@ export default function Sync() {
               <div className="text-left">
                 <p className="font-medium text-foreground">Real-time Sync</p>
                 <p className="text-sm text-muted-foreground">Everyone hears the same song at the same time</p>
+              </div>
+            </div>
+            
+            <div className="bg-card rounded-xl p-4 flex items-center gap-4">
+              <Crown className="w-8 h-8 text-yellow-500 flex-shrink-0" />
+              <div className="text-left">
+                <p className="font-medium text-foreground">Host Controls</p>
+                <p className="text-sm text-muted-foreground">Lock room, kick users, transfer host</p>
+              </div>
+            </div>
+
+            <div className="bg-card rounded-xl p-4 flex items-center gap-4">
+              <ListMusic className="w-8 h-8 text-primary flex-shrink-0" />
+              <div className="text-left">
+                <p className="font-medium text-foreground">Shared Queue</p>
+                <p className="text-sm text-muted-foreground">Everyone can add songs to the queue</p>
               </div>
             </div>
             
