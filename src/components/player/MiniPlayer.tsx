@@ -1,42 +1,65 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
-import { usePlayer } from '@/contexts/PlayerContext';
-import { useLikes } from '@/contexts/LikesContext';
-import { cn } from '@/lib/utils';
-import {
-  Play,
-  Pause,
-  SkipForward,
-  Heart,
-  ChevronUp,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Slider } from '@/components/ui/slider';
+import React, { useMemo } from "react";
+import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import { usePlayer } from "@/contexts/PlayerContext";
+import { useLikes } from "@/contexts/LikesContext";
+import { cn } from "@/lib/utils";
+import { Play, Pause, SkipForward, Heart, ChevronUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+const YouTubeMiniFrame = React.memo(function YouTubeMiniFrame({
+  title,
+  src,
+}: {
+  title: string;
+  src: string;
+}) {
+  return (
+    <iframe
+      title={title}
+      src={src}
+      className="w-full h-full pointer-events-none"
+      allow="autoplay; encrypted-media; picture-in-picture"
+    />
+  );
+});
 
 export default function MiniPlayer() {
   const navigate = useNavigate();
   const { isLiked, toggleLike } = useLikes();
-  const {
-    currentSong,
-    isPlaying,
-    currentTime,
-    duration,
-    toggle,
-    next,
-    seek,
-  } = usePlayer();
+  const { currentSong, isPlaying, currentTime, duration, toggle, next, seek } =
+    usePlayer();
 
   if (!currentSong) return null;
 
-  const isYouTube = currentSong.id.startsWith('yt-');
-  const youtubeId = isYouTube ? currentSong.id.replace('yt-', '') : '';
+  const isYouTube = currentSong.id.startsWith("yt-");
+  const youtubeId = isYouTube ? currentSong.id.replace("yt-", "") : "";
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   const handleExpandPlayer = () => {
-    navigate('/now-playing');
+    navigate("/now-playing");
   };
+
+  const youtubeSrc = useMemo(() => {
+    if (!youtubeId) return "";
+    const origin =
+      typeof window !== "undefined" ? encodeURIComponent(window.location.origin) : "";
+
+    const params = new URLSearchParams({
+      autoplay: "1",
+      playsinline: "1",
+      controls: "0",
+      rel: "0",
+      mute: "0",
+      enablejsapi: "1",
+    });
+
+    if (origin) params.set("origin", origin);
+
+    return `https://www.youtube.com/embed/${youtubeId}?${params.toString()}`;
+  }, [youtubeId]);
+
   return (
     <motion.div
       initial={{ y: 100 }}
@@ -45,7 +68,7 @@ export default function MiniPlayer() {
     >
       {/* Progress bar at top - clickable seek bar */}
       {!isYouTube && (
-        <div 
+        <div
           className="absolute top-0 left-0 right-0 h-1 bg-muted cursor-pointer"
           onClick={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
@@ -53,26 +76,18 @@ export default function MiniPlayer() {
             seek(percent * duration);
           }}
         >
-          <motion.div
-            className="h-full bg-primary"
-            style={{ width: `${progress}%` }}
-          />
+          <motion.div className="h-full bg-primary" style={{ width: `${progress}%` }} />
         </div>
       )}
 
       <div className="flex items-center gap-2 px-3 py-2 md:px-6 md:py-3">
         {/* YouTube Mini Video or Album Art */}
         {isYouTube ? (
-          <div 
+          <div
             className="relative w-16 h-12 rounded overflow-hidden flex-shrink-0 bg-muted cursor-pointer"
             onClick={handleExpandPlayer}
           >
-            <iframe
-              title={currentSong.title}
-              src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&playsinline=1&controls=0&rel=0&mute=0`}
-              className="w-full h-full pointer-events-none"
-              allow="autoplay; encrypted-media"
-            />
+            <YouTubeMiniFrame title={currentSong.title} src={youtubeSrc} />
           </div>
         ) : (
           <button
@@ -84,6 +99,7 @@ export default function MiniPlayer() {
                 src={currentSong.artwork}
                 alt={currentSong.title}
                 className="w-full h-full object-cover"
+                loading="lazy"
               />
             ) : (
               <div className="w-full h-full gradient-primary flex items-center justify-center">
@@ -94,16 +110,11 @@ export default function MiniPlayer() {
         )}
 
         {/* Title & Artist */}
-        <button
-          onClick={handleExpandPlayer}
-          className="min-w-0 flex-1 text-left"
-        >
+        <button onClick={handleExpandPlayer} className="min-w-0 flex-1 text-left">
           <h4 className="font-medium text-foreground truncate text-sm">
             {currentSong.title}
           </h4>
-          <p className="text-xs text-muted-foreground truncate">
-            {currentSong.artist}
-          </p>
+          <p className="text-xs text-muted-foreground truncate">{currentSong.artist}</p>
         </button>
 
         {/* Controls */}
@@ -117,7 +128,9 @@ export default function MiniPlayer() {
             )}
             onClick={() => toggleLike(currentSong)}
           >
-            <Heart className={cn("w-5 h-5", isLiked(currentSong.id) && "fill-current")} />
+            <Heart
+              className={cn("w-5 h-5", isLiked(currentSong.id) && "fill-current")}
+            />
           </Button>
 
           {!isYouTube && (
@@ -156,9 +169,7 @@ export default function MiniPlayer() {
           </Button>
         </div>
       </div>
-
-      {/* Mobile bottom padding for navigation */}
-      <div className="h-16 md:hidden" />
     </motion.div>
   );
 }
+
