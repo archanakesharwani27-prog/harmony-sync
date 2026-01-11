@@ -129,7 +129,7 @@ export default function NowPlaying() {
                 <iframe
                   ref={iframeRef}
                   title={currentSong.title}
-                  src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&playsinline=1&controls=1&rel=0&enablejsapi=1`}
+                  src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&playsinline=1&controls=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`}
                   className="h-full w-full"
                   allow="autoplay; encrypted-media; picture-in-picture"
                   allowFullScreen

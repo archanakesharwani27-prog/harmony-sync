@@ -11,6 +11,7 @@ import { PlaylistProvider } from "@/contexts/PlaylistContext";
 import { SyncProvider } from "@/contexts/SyncContext";
 import MainLayout from "@/components/layout/MainLayout";
 import MobileNav from "@/components/layout/MobileNav";
+import MiniPlayerDock from "@/components/player/MiniPlayerDock";
 import Home from "./pages/Home";
 import Search from "./pages/Search";
 import Library from "./pages/Library";
@@ -54,8 +55,10 @@ const App = () => (
                         <Route path="/install" element={<Install />} />
                       </Route>
                       <Route path="/now-playing" element={<NowPlaying />} />
-                    <Route path="*" element={<NotFound />} />
+                      <Route path="*" element={<NotFound />} />
                     </Routes>
+
+                    <MiniPlayerDock />
                     <MobileNav />
                   </BrowserRouter>
                 </TooltipProvider>
@@ -69,3 +72,4 @@ const App = () => (
 );
 
 export default App;
+

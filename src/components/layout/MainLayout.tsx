@@ -1,8 +1,8 @@
-import React from 'react';
-import { Outlet } from 'react-router-dom';
-import Sidebar from './Sidebar';
-import MiniPlayer from '../player/MiniPlayer';
-import { usePlayer } from '@/contexts/PlayerContext';
+import React from "react";
+import { Outlet } from "react-router-dom";
+import Sidebar from "./Sidebar";
+import { usePlayer } from "@/contexts/PlayerContext";
+import { cn } from "@/lib/utils";
 
 export default function MainLayout() {
   const { currentSong } = usePlayer();
@@ -16,17 +16,17 @@ export default function MainLayout() {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
+        <div
+          className={cn(
+            "flex-1 overflow-y-auto custom-scrollbar",
+            // Reserve space for fixed bottom UI (mobile nav + optional mini player)
+            currentSong ? "pb-32 md:pb-20" : "pb-16 md:pb-0"
+          )}
+        >
           <Outlet />
         </div>
       </main>
-
-      {/* Mini Player - Fixed at bottom */}
-      {currentSong && (
-        <div className="fixed bottom-0 left-0 right-0 z-50">
-          <MiniPlayer />
-        </div>
-      )}
     </div>
   );
 }
+
