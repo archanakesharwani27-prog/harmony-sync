@@ -14,8 +14,11 @@ const navItems = [
 export default function MobileNav() {
   const location = useLocation();
 
+  // Hide on now-playing page
+  if (location.pathname === "/now-playing") return null;
+
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden glass border-t border-border">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-background/95 backdrop-blur-lg border-t border-border">
       <div className="flex items-center justify-around h-16 px-2">
         {navItems.map((item) => {
           const isActive = location.pathname === item.path;

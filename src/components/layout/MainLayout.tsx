@@ -2,10 +2,14 @@ import React from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import { usePlayer } from "@/contexts/PlayerContext";
-import { cn } from "@/lib/utils";
 
 export default function MainLayout() {
   const { currentSong } = usePlayer();
+
+  // Mobile: nav=64px, miniplayer=~72px when playing
+  // Desktop: miniplayer=~72px when playing
+  const mobileBottomPadding = currentSong ? "pb-36" : "pb-20";
+  const desktopBottomPadding = currentSong ? "md:pb-24" : "md:pb-4";
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
@@ -17,11 +21,7 @@ export default function MainLayout() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
         <div
-          className={cn(
-            "flex-1 overflow-y-auto custom-scrollbar",
-            // Reserve space for fixed bottom UI (mobile nav + optional mini player)
-            currentSong ? "pb-32 md:pb-20" : "pb-16 md:pb-0"
-          )}
+          className={`flex-1 overflow-y-auto custom-scrollbar ${mobileBottomPadding} ${desktopBottomPadding}`}
         >
           <Outlet />
         </div>
