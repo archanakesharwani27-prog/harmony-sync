@@ -19,10 +19,71 @@ import {
   ListMusic,
   Sliders,
   Share2,
+  Video,
+  VideoOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
+
+// Hidden YouTube audio player
+const YouTubeHiddenPlayer = React.memo(
+  function YouTubeHiddenPlayer({
+    videoId,
+    isPlaying,
+  }: {
+    videoId: string;
+    isPlaying: boolean;
+  }) {
+    const iframeRef = useRef<HTMLIFrameElement>(null);
+    const [src, setSrc] = useState("");
+    const lastVideoIdRef = useRef(videoId);
+
+    useEffect(() => {
+      if (lastVideoIdRef.current !== videoId) {
+        lastVideoIdRef.current = videoId;
+        const origin =
+          typeof window !== "undefined"
+            ? encodeURIComponent(window.location.origin)
+            : "";
+        const params = new URLSearchParams({
+          autoplay: "1",
+          playsinline: "1",
+          controls: "0",
+          rel: "0",
+          mute: "0",
+          enablejsapi: "1",
+        });
+        if (origin) params.set("origin", origin);
+        setSrc(`https://www.youtube.com/embed/${videoId}?${params.toString()}`);
+      }
+    }, [videoId]);
+
+    useEffect(() => {
+      if (iframeRef.current && src) {
+        const command = isPlaying ? "playVideo" : "pauseVideo";
+        iframeRef.current.contentWindow?.postMessage(
+          JSON.stringify({ event: "command", func: command }),
+          "*"
+        );
+      }
+    }, [isPlaying, src]);
+
+    if (!src) return null;
+
+    return (
+      <iframe
+        ref={iframeRef}
+        title="YouTube Audio"
+        src={src}
+        className="absolute w-1 h-1 opacity-0 pointer-events-none"
+        allow="autoplay; encrypted-media"
+        style={{ position: 'absolute', left: '-9999px' }}
+      />
+    );
+  },
+  (prev, next) => prev.videoId === next.videoId && prev.isPlaying === next.isPlaying
+);
 
 export default function NowPlaying() {
   const navigate = useNavigate();
@@ -38,6 +99,7 @@ export default function NowPlaying() {
     isMuted,
     shuffle,
     repeat,
+    videoMode,
     toggle,
     next,
     previous,
@@ -46,6 +108,7 @@ export default function NowPlaying() {
     toggleMute,
     toggleShuffle,
     setRepeat,
+    toggleVideoMode,
   } = usePlayer();
 
   if (!currentSong) {
@@ -70,6 +133,21 @@ export default function NowPlaying() {
     setRepeat(modes[(currentIndex + 1) % modes.length]);
   };
 
+  const handleTogglePlay = () => {
+    if (isYouTube) {
+      if (videoMode && iframeRef.current) {
+        const command = ytPlaying ? 'pauseVideo' : 'playVideo';
+        iframeRef.current.contentWindow?.postMessage(
+          JSON.stringify({ event: 'command', func: command }),
+          '*'
+        );
+      }
+      setYtPlaying(!ytPlaying);
+    } else {
+      toggle();
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -77,6 +155,11 @@ export default function NowPlaying() {
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex flex-col bg-background"
     >
+      {/* Hidden YouTube player for audio-only mode */}
+      {isYouTube && !videoMode && (
+        <YouTubeHiddenPlayer videoId={youtubeId} isPlaying={ytPlaying} />
+      )}
+
       {/* Background with artwork blur */}
       {currentSong.artwork && (
         <div className="absolute inset-0 overflow-hidden">
@@ -109,18 +192,33 @@ export default function NowPlaying() {
               {currentSong.album || 'Unknown Album'}
             </p>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <Share2 className="w-5 h-5" />
-          </Button>
+          <div className="flex items-center gap-1">
+            {/* Video/Audio toggle for YouTube */}
+            {isYouTube && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleVideoMode}
+                className="text-muted-foreground hover:text-foreground"
+                title={videoMode ? "Switch to Audio" : "Switch to Video"}
+              >
+                {videoMode ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <Share2 className="w-5 h-5" />
+            </Button>
+          </div>
         </div>
 
         {/* Media */}
         <div className="flex-1 flex items-center justify-center px-8 py-4">
-          {isYouTube ? (
+          {isYouTube && videoMode ? (
+            // Video mode - show YouTube player
             <div className="w-full max-w-[720px]">
               <AspectRatio
                 ratio={16 / 9}
@@ -137,13 +235,14 @@ export default function NowPlaying() {
               </AspectRatio>
             </div>
           ) : (
+            // Audio mode - show rotating album art (for both local and YouTube)
             <motion.div
-              animate={{ rotate: isPlaying ? 360 : 0 }}
+              animate={{ rotate: (isYouTube ? ytPlaying : isPlaying) ? 360 : 0 }}
               transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-              style={{ animationPlayState: isPlaying ? 'running' : 'paused' }}
+              style={{ animationPlayState: (isYouTube ? ytPlaying : isPlaying) ? 'running' : 'paused' }}
               className={cn(
                 'relative w-full max-w-[320px] aspect-square rounded-full overflow-hidden shadow-2xl',
-                !isPlaying && 'paused'
+                !(isYouTube ? ytPlaying : isPlaying) && 'paused'
               )}
             >
               {currentSong.artwork ? (
@@ -187,7 +286,7 @@ export default function NowPlaying() {
           <p className="text-lg text-muted-foreground mt-1">{currentSong.artist}</p>
         </div>
 
-        {/* Progress */}
+        {/* Progress - only for non-YouTube or add a note */}
         {!isYouTube && (
           <div className="px-8 mt-8">
             <Slider
@@ -201,6 +300,14 @@ export default function NowPlaying() {
               <span className="text-xs text-muted-foreground">{formatTime(currentTime)}</span>
               <span className="text-xs text-muted-foreground">{formatTime(duration)}</span>
             </div>
+          </div>
+        )}
+
+        {isYouTube && !videoMode && (
+          <div className="px-8 mt-4 text-center">
+            <p className="text-xs text-muted-foreground">
+              Audio playing • Tap video icon to switch to video
+            </p>
           </div>
         )}
 
@@ -228,18 +335,7 @@ export default function NowPlaying() {
           </Button>
 
           <Button
-            onClick={() => {
-              if (isYouTube && iframeRef.current) {
-                const command = ytPlaying ? 'pauseVideo' : 'playVideo';
-                iframeRef.current.contentWindow?.postMessage(
-                  JSON.stringify({ event: 'command', func: command }),
-                  '*'
-                );
-                setYtPlaying(!ytPlaying);
-              } else {
-                toggle();
-              }
-            }}
+            onClick={handleTogglePlay}
             size="icon"
             className="h-16 w-16 rounded-full gradient-primary text-primary-foreground hover:opacity-90 glow-primary"
           >

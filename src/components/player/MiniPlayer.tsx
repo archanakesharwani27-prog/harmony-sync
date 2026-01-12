@@ -4,60 +4,87 @@ import { useNavigate } from "react-router-dom";
 import { usePlayer } from "@/contexts/PlayerContext";
 import { useLikes } from "@/contexts/LikesContext";
 import { cn } from "@/lib/utils";
-import { Play, Pause, SkipForward, Heart, ChevronUp } from "lucide-react";
+import { Play, Pause, SkipForward, Heart, ChevronUp, Video, VideoOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-// Stable YouTube iframe wrapper that never re-mounts
-const YouTubeMiniFrame = React.memo(
-  function YouTubeMiniFrame({
+// Hidden YouTube audio player - plays in background
+const YouTubeAudioPlayer = React.memo(
+  function YouTubeAudioPlayer({
     videoId,
-    title,
+    isPlaying,
+    onStateChange,
   }: {
     videoId: string;
-    title: string;
+    isPlaying: boolean;
+    onStateChange?: (playing: boolean) => void;
   }) {
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const [src, setSrc] = useState("");
+    const lastVideoIdRef = useRef(videoId);
 
     // Only update the src when the videoId actually changes
     useEffect(() => {
-      const origin =
-        typeof window !== "undefined"
-          ? encodeURIComponent(window.location.origin)
-          : "";
-      const params = new URLSearchParams({
-        autoplay: "1",
-        playsinline: "1",
-        controls: "0",
-        rel: "0",
-        mute: "0",
-        enablejsapi: "1",
-      });
-      if (origin) params.set("origin", origin);
-      const newSrc = `https://www.youtube.com/embed/${videoId}?${params.toString()}`;
-      setSrc((prev) => (prev.includes(videoId) ? prev : newSrc));
+      if (lastVideoIdRef.current !== videoId) {
+        lastVideoIdRef.current = videoId;
+        const origin =
+          typeof window !== "undefined"
+            ? encodeURIComponent(window.location.origin)
+            : "";
+        const params = new URLSearchParams({
+          autoplay: "1",
+          playsinline: "1",
+          controls: "0",
+          rel: "0",
+          mute: "0",
+          enablejsapi: "1",
+        });
+        if (origin) params.set("origin", origin);
+        setSrc(`https://www.youtube.com/embed/${videoId}?${params.toString()}`);
+      }
     }, [videoId]);
+
+    // Control playback via postMessage
+    useEffect(() => {
+      if (iframeRef.current && src) {
+        const command = isPlaying ? "playVideo" : "pauseVideo";
+        iframeRef.current.contentWindow?.postMessage(
+          JSON.stringify({ event: "command", func: command }),
+          "*"
+        );
+      }
+    }, [isPlaying, src]);
 
     if (!src) return null;
 
     return (
       <iframe
         ref={iframeRef}
-        title={title}
+        title="YouTube Audio"
         src={src}
-        className="w-full h-full pointer-events-none"
-        allow="autoplay; encrypted-media; picture-in-picture"
+        className="absolute w-1 h-1 opacity-0 pointer-events-none"
+        allow="autoplay; encrypted-media"
+        style={{ position: 'absolute', left: '-9999px' }}
       />
     );
   },
-  (prev, next) => prev.videoId === next.videoId
+  (prev, next) => prev.videoId === next.videoId && prev.isPlaying === next.isPlaying
 );
 
 export default function MiniPlayer() {
   const navigate = useNavigate();
   const { isLiked, toggleLike } = useLikes();
-  const { currentSong, isPlaying, currentTime, duration, toggle, next, seek } =
-    usePlayer();
+  const { 
+    currentSong, 
+    isPlaying, 
+    currentTime, 
+    duration, 
+    videoMode,
+    toggle, 
+    next, 
+    seek,
+    toggleVideoMode,
+  } = usePlayer();
+  const [ytPlaying, setYtPlaying] = useState(true);
 
   if (!currentSong) return null;
 
@@ -70,12 +97,28 @@ export default function MiniPlayer() {
     navigate("/now-playing");
   };
 
+  const handleTogglePlay = () => {
+    if (isYouTube) {
+      setYtPlaying(!ytPlaying);
+    } else {
+      toggle();
+    }
+  };
+
   return (
     <motion.div
       initial={{ y: 100 }}
       animate={{ y: 0 }}
       className="bg-card border-t border-border player-shadow"
     >
+      {/* Hidden YouTube player for audio-only mode */}
+      {isYouTube && !videoMode && (
+        <YouTubeAudioPlayer 
+          videoId={youtubeId} 
+          isPlaying={ytPlaying}
+        />
+      )}
+
       {/* Progress bar at top - clickable seek bar */}
       {!isYouTube && (
         <div
@@ -94,33 +137,24 @@ export default function MiniPlayer() {
       )}
 
       <div className="flex items-center gap-2 px-3 py-2 md:px-6 md:py-3">
-        {/* YouTube Mini Video or Album Art */}
-        {isYouTube ? (
-          <div
-            className="relative w-16 h-12 rounded overflow-hidden flex-shrink-0 bg-muted cursor-pointer"
-            onClick={handleExpandPlayer}
-          >
-            <YouTubeMiniFrame videoId={youtubeId} title={currentSong.title} />
-          </div>
-        ) : (
-          <button
-            onClick={handleExpandPlayer}
-            className="relative w-12 h-12 rounded-md overflow-hidden flex-shrink-0 bg-muted"
-          >
-            {currentSong.artwork ? (
-              <img
-                src={currentSong.artwork}
-                alt={currentSong.title}
-                className="w-full h-full object-cover"
-                loading="lazy"
-              />
-            ) : (
-              <div className="w-full h-full gradient-primary flex items-center justify-center">
-                <span className="text-xl">🎵</span>
-              </div>
-            )}
-          </button>
-        )}
+        {/* Album Art (always show for YouTube in audio mode) */}
+        <button
+          onClick={handleExpandPlayer}
+          className="relative w-12 h-12 rounded-md overflow-hidden flex-shrink-0 bg-muted"
+        >
+          {currentSong.artwork ? (
+            <img
+              src={currentSong.artwork}
+              alt={currentSong.title}
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <div className="w-full h-full gradient-primary flex items-center justify-center">
+              <span className="text-xl">🎵</span>
+            </div>
+          )}
+        </button>
 
         {/* Title & Artist */}
         <button
@@ -154,31 +188,31 @@ export default function MiniPlayer() {
             />
           </Button>
 
-          {!isYouTube && (
+          {/* Video/Audio toggle for YouTube */}
+          {isYouTube && (
             <Button
-              onClick={toggle}
               variant="ghost"
               size="icon"
-              className="h-10 w-10 text-foreground"
+              onClick={toggleVideoMode}
+              className="h-9 w-9 text-muted-foreground"
+              title={videoMode ? "Switch to Audio" : "Switch to Video"}
             >
-              {isPlaying ? (
-                <Pause className="w-6 h-6" />
-              ) : (
-                <Play className="w-6 h-6 ml-0.5" fill="currentColor" />
-              )}
+              {videoMode ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
             </Button>
           )}
 
-          {isYouTube && (
-            <Button
-              onClick={handleExpandPlayer}
-              variant="ghost"
-              size="icon"
-              className="h-10 w-10 text-foreground"
-            >
-              <ChevronUp className="w-6 h-6" />
-            </Button>
-          )}
+          <Button
+            onClick={handleTogglePlay}
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10 text-foreground"
+          >
+            {(isYouTube ? ytPlaying : isPlaying) ? (
+              <Pause className="w-6 h-6" />
+            ) : (
+              <Play className="w-6 h-6 ml-0.5" fill="currentColor" />
+            )}
+          </Button>
 
           <Button
             variant="ghost"
@@ -193,5 +227,3 @@ export default function MiniPlayer() {
     </motion.div>
   );
 }
-
-

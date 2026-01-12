@@ -35,6 +35,7 @@ export interface PlayerState {
   repeat: 'none' | 'one' | 'all';
   queue: Song[];
   queueIndex: number;
+  videoMode: boolean; // true = show video, false = audio only (like YT Music)
 }
 
 export interface EqualizerPreset {

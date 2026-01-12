@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect, use
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { Song } from '@/types/music';
+import { usePlayer } from '@/contexts/PlayerContext';
 
 interface SyncUser {
   id: string;
@@ -50,10 +51,13 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const userIdRef = useRef(`user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
   const userId = userIdRef.current;
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  
+  // Get player functions to actually play songs on other devices
+  const player = usePlayer();
 
   const isHost = session?.hostId === userId;
 
-  // Listen to realtime presence updates
+  // Listen to realtime presence and broadcast updates
   useEffect(() => {
     if (!session) return;
 
@@ -82,23 +86,30 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         setSession(prev => prev ? { ...prev, users } : null);
       })
       .on('broadcast', { event: 'play' }, ({ payload }) => {
-        if (!isHost) {
+        // Non-hosts should play the song when host broadcasts
+        if (!isHost && payload.song) {
+          console.log('Received play broadcast:', payload.song.title);
           setSession(prev => prev ? { 
             ...prev, 
             currentSong: payload.song, 
             isPlaying: true,
             currentTime: payload.time || 0
           } : null);
+          
+          // Actually play the song on this device!
+          player.play(payload.song);
         }
       })
       .on('broadcast', { event: 'pause' }, () => {
         if (!isHost) {
           setSession(prev => prev ? { ...prev, isPlaying: false } : null);
+          player.pause();
         }
       })
       .on('broadcast', { event: 'seek' }, ({ payload }) => {
         if (!isHost) {
           setSession(prev => prev ? { ...prev, currentTime: payload.time } : null);
+          player.seek(payload.time);
         }
       })
       .on('broadcast', { event: 'lock' }, ({ payload }) => {
@@ -143,7 +154,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       channelRef.current = null;
       setIsConnected(false);
     };
-  }, [session?.id, userId, isHost]);
+  }, [session?.id, userId, isHost, player]);
 
   const createSession = useCallback(async (name: string, userName: string): Promise<string> => {
     const sessionId = `session-${Date.now()}`;
@@ -198,6 +209,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const syncPlay = useCallback((song: Song, time = 0) => {
     if (!session || !isHost) return;
     
+    console.log('Host broadcasting play:', song.title);
+    
     channelRef.current?.send({
       type: 'broadcast',
       event: 'play',
@@ -205,7 +218,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     });
     
     setSession(prev => prev ? { ...prev, currentSong: song, isPlaying: true, currentTime: time } : null);
-  }, [session, isHost]);
+    
+    // Host also plays the song
+    player.play(song);
+  }, [session, isHost, player]);
 
   const syncPause = useCallback(() => {
     if (!session || !isHost) return;
@@ -217,7 +233,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     });
     
     setSession(prev => prev ? { ...prev, isPlaying: false } : null);
-  }, [session, isHost]);
+    player.pause();
+  }, [session, isHost, player]);
 
   const syncSeek = useCallback((time: number) => {
     if (!session || !isHost) return;
@@ -229,7 +246,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     });
     
     setSession(prev => prev ? { ...prev, currentTime: time } : null);
-  }, [session, isHost]);
+    player.seek(time);
+  }, [session, isHost, player]);
 
   // Host controls
   const lockRoom = useCallback((locked: boolean) => {
