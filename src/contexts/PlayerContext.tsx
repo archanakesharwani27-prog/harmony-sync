@@ -18,6 +18,7 @@ interface PlayerContextType extends PlayerState {
   clearQueue: () => void;
   playPlaylist: (songs: Song[], startIndex?: number) => void;
   removefromQueue: (index: number) => void;
+  toggleVideoMode: () => void;
 }
 
 type PlayerAction =
@@ -33,7 +34,8 @@ type PlayerAction =
   | { type: 'SET_QUEUE_INDEX'; payload: number }
   | { type: 'ADD_TO_QUEUE'; payload: Song[] }
   | { type: 'REMOVE_FROM_QUEUE'; payload: number }
-  | { type: 'CLEAR_QUEUE' };
+  | { type: 'CLEAR_QUEUE' }
+  | { type: 'SET_VIDEO_MODE'; payload: boolean };
 
 const initialState: PlayerState = {
   currentSong: null,
@@ -46,6 +48,7 @@ const initialState: PlayerState = {
   repeat: 'none',
   queue: [],
   queueIndex: -1,
+  videoMode: false, // Default to audio-only mode like YT Music
 };
 
 function playerReducer(state: PlayerState, action: PlayerAction): PlayerState {
@@ -80,6 +83,8 @@ function playerReducer(state: PlayerState, action: PlayerAction): PlayerState {
       };
     case 'CLEAR_QUEUE':
       return { ...state, queue: [], queueIndex: -1, currentSong: null };
+    case 'SET_VIDEO_MODE':
+      return { ...state, videoMode: action.payload };
     default:
       return state;
   }
@@ -337,6 +342,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'REMOVE_FROM_QUEUE', payload: index });
   }, []);
 
+  const toggleVideoMode = useCallback(() => {
+    dispatch({ type: 'SET_VIDEO_MODE', payload: !state.videoMode });
+  }, [state.videoMode]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -361,6 +370,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     clearQueue,
     playPlaylist,
     removefromQueue,
+    toggleVideoMode,
   };
 
   return (
