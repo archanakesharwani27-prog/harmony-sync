@@ -125,23 +125,27 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'SET_PLAYING', payload: false });
       dispatch({ type: 'SET_SONG', payload: song });
       dispatch({ type: 'SET_CURRENT_TIME', payload: 0 });
+      dispatch({ type: 'SET_DURATION', payload: 0 });
 
       let audioUrl = song.url;
 
-      // YouTube tracks: try to extract audio via edge function
+      // YouTube tracks: extract audio via edge function (audio-only, no video fallback)
       if (song.id.startsWith('yt-')) {
         const videoId = song.id.replace('yt-', '');
         try {
           console.log('Extracting audio for YouTube video:', videoId);
+          toast.loading('Loading audio...', { id: 'yt-loading' });
+          
           const { data, error } = await supabase.functions.invoke('youtube-audio', {
             body: { videoId },
           });
 
+          toast.dismiss('yt-loading');
+
           if (error || !data?.audioUrl) {
             console.error('Failed to extract YouTube audio:', error || 'No audio URL');
-            // YouTube audio extraction failed - the UI will handle this via videoMode
-            dispatch({ type: 'SET_VIDEO_MODE', payload: true });
-            dispatch({ type: 'SET_PLAYING', payload: true });
+            toast.error('Audio unavailable. Try another song.');
+            dispatch({ type: 'SET_PLAYING', payload: false });
             return;
           }
 
@@ -149,9 +153,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           console.log('Got audio URL:', audioUrl);
         } catch (err) {
           console.error('YouTube audio extraction error:', err);
-          // Fallback to video mode
-          dispatch({ type: 'SET_VIDEO_MODE', payload: true });
-          dispatch({ type: 'SET_PLAYING', payload: true });
+          toast.dismiss('yt-loading');
+          toast.error('Failed to load audio. Try again.');
+          dispatch({ type: 'SET_PLAYING', payload: false });
           return;
         }
       }
@@ -179,23 +183,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         },
         onloaderror: (_, error) => {
           console.error('Howler load error:', error);
-          // For YouTube, fall back to video mode on error
-          if (song.id.startsWith('yt-')) {
-            dispatch({ type: 'SET_VIDEO_MODE', payload: true });
-            dispatch({ type: 'SET_PLAYING', payload: true });
-          } else {
-            toast.error('Failed to load audio');
-            dispatch({ type: 'SET_PLAYING', payload: false });
-          }
+          toast.error('Failed to load audio');
+          dispatch({ type: 'SET_PLAYING', payload: false });
         },
         onplayerror: (_, error) => {
           console.error('Howler play error:', error);
-          if (song.id.startsWith('yt-')) {
-            dispatch({ type: 'SET_VIDEO_MODE', payload: true });
-          } else {
-            toast.error('Failed to play audio');
-            dispatch({ type: 'SET_PLAYING', payload: false });
-          }
+          toast.error('Failed to play audio');
+          dispatch({ type: 'SET_PLAYING', payload: false });
         },
       });
 
