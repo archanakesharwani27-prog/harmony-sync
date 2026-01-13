@@ -2,6 +2,7 @@ import React, { createContext, useContext, useReducer, useCallback, useRef, useE
 import { Howl } from 'howler';
 import { toast } from 'sonner';
 import type { Song, PlayerState, RepeatMode } from '@/types/music';
+import { supabase } from '@/integrations/supabase/client';
 
 interface PlayerContextType extends PlayerState {
   play: (song?: Song) => void;
@@ -122,16 +123,38 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
       clearTimeInterval();
       dispatch({ type: 'SET_PLAYING', payload: false });
+      dispatch({ type: 'SET_SONG', payload: song });
+      dispatch({ type: 'SET_CURRENT_TIME', payload: 0 });
 
-      // YouTube tracks: keep them as video playback (no audio extraction)
+      let audioUrl = song.url;
+
+      // YouTube tracks: try to extract audio via edge function
       if (song.id.startsWith('yt-')) {
-        dispatch({ type: 'SET_SONG', payload: song });
-        dispatch({ type: 'SET_CURRENT_TIME', payload: 0 });
-        dispatch({ type: 'SET_DURATION', payload: 0 });
-        return;
-      }
+        const videoId = song.id.replace('yt-', '');
+        try {
+          console.log('Extracting audio for YouTube video:', videoId);
+          const { data, error } = await supabase.functions.invoke('youtube-audio', {
+            body: { videoId },
+          });
 
-      const audioUrl = song.url;
+          if (error || !data?.audioUrl) {
+            console.error('Failed to extract YouTube audio:', error || 'No audio URL');
+            // YouTube audio extraction failed - the UI will handle this via videoMode
+            dispatch({ type: 'SET_VIDEO_MODE', payload: true });
+            dispatch({ type: 'SET_PLAYING', payload: true });
+            return;
+          }
+
+          audioUrl = data.audioUrl;
+          console.log('Got audio URL:', audioUrl);
+        } catch (err) {
+          console.error('YouTube audio extraction error:', err);
+          // Fallback to video mode
+          dispatch({ type: 'SET_VIDEO_MODE', payload: true });
+          dispatch({ type: 'SET_PLAYING', payload: true });
+          return;
+        }
+      }
 
       howlRef.current = new Howl({
         src: [audioUrl],
@@ -156,18 +179,27 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         },
         onloaderror: (_, error) => {
           console.error('Howler load error:', error);
-          toast.error('Failed to load audio');
-          dispatch({ type: 'SET_PLAYING', payload: false });
+          // For YouTube, fall back to video mode on error
+          if (song.id.startsWith('yt-')) {
+            dispatch({ type: 'SET_VIDEO_MODE', payload: true });
+            dispatch({ type: 'SET_PLAYING', payload: true });
+          } else {
+            toast.error('Failed to load audio');
+            dispatch({ type: 'SET_PLAYING', payload: false });
+          }
         },
         onplayerror: (_, error) => {
           console.error('Howler play error:', error);
-          toast.error('Failed to play audio');
-          dispatch({ type: 'SET_PLAYING', payload: false });
+          if (song.id.startsWith('yt-')) {
+            dispatch({ type: 'SET_VIDEO_MODE', payload: true });
+          } else {
+            toast.error('Failed to play audio');
+            dispatch({ type: 'SET_PLAYING', payload: false });
+          }
         },
       });
 
-      dispatch({ type: 'SET_SONG', payload: song });
-      dispatch({ type: 'SET_CURRENT_TIME', payload: 0 });
+      howlRef.current.play();
     },
     [state.volume, state.isMuted, startTimeInterval, clearTimeInterval]
   );
