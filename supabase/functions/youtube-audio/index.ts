@@ -9,76 +9,84 @@ const corsHeaders = {
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-// Last-resort fallback list (may go down / rate limit)
-const FALLBACK_INSTANCES = [
+// Piped instances - more reliable than Invidious for audio extraction
+const PIPED_INSTANCES = [
+  "https://pipedapi.kavin.rocks",
+  "https://pipedapi.adminforge.de",
+  "https://api.piped.yt",
+  "https://pipedapi.darkness.services",
+  "https://pipedapi.moomoo.me",
+];
+
+// Invidious fallback instances
+const INVIDIOUS_INSTANCES = [
   "https://yewtu.be",
   "https://vid.puffyan.us",
   "https://invidious.snopyta.org",
 ];
 
-type InstancesApiRow = [
-  string,
-  {
-    uri?: string;
-    api?: boolean;
-    cors?: boolean;
-    type?: string;
-    monitor?: {
-      down?: boolean;
-      last_status?: number;
-      uptime?: number;
-    };
-  },
-];
+interface AudioResult {
+  audioUrl: string;
+  title: string;
+  thumbnail: string;
+}
 
-let cachedInstances: { at: number; list: string[] } | null = null;
+async function getAudioFromPiped(videoId: string): Promise<AudioResult | null> {
+  for (const base of PIPED_INSTANCES) {
+    try {
+      const url = `${base}/streams/${videoId}`;
+      console.log("Trying Piped:", url);
 
-async function getHealthyInstances(): Promise<string[]> {
-  // Cache for 10 minutes to avoid hammering instances-api
-  const now = Date.now();
-  if (cachedInstances && now - cachedInstances.at < 10 * 60 * 1000) {
-    return cachedInstances.list;
-  }
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-  try {
-    const res = await fetch(
-      "https://api.invidious.io/instances.json?pretty=0&sort_by=health,users",
-      {
+      const res = await fetch(url, {
         headers: {
           Accept: "application/json",
           "User-Agent": UA,
         },
-      },
-    );
+        signal: controller.signal,
+      });
 
-    if (!res.ok) {
-      console.log("instances-api returned", res.status);
-      cachedInstances = { at: now, list: FALLBACK_INSTANCES };
-      return cachedInstances.list;
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        console.log(`Piped ${base} returned ${res.status}`);
+        continue;
+      }
+
+      const data = await res.json();
+
+      if (!data?.audioStreams || !Array.isArray(data.audioStreams) || data.audioStreams.length === 0) {
+        console.log(`No audio streams from ${base}`);
+        continue;
+      }
+
+      // Sort by bitrate and get the best audio stream
+      const audioStreams = data.audioStreams
+        .filter((s: any) => s?.url && s?.mimeType?.startsWith("audio/"))
+        .sort((a: any, b: any) => (b?.bitrate ?? 0) - (a?.bitrate ?? 0));
+
+      if (audioStreams.length === 0) {
+        console.log(`No valid audio streams from ${base}`);
+        continue;
+      }
+
+      const best = audioStreams[0];
+      console.log("Selected audio from Piped:", best.mimeType, "bitrate:", best.bitrate);
+
+      return {
+        audioUrl: best.url,
+        title: data.title || "Unknown",
+        thumbnail: data.thumbnailUrl || "",
+      };
+    } catch (e) {
+      console.error(`Piped ${base} error:`, e);
+      continue;
     }
-
-    const rows = (await res.json()) as InstancesApiRow[];
-
-    const list = rows
-      .map(([, meta]) => meta)
-      .filter((m) => m?.uri)
-      // Prefer instances that explicitly advertise API support and are up
-      .filter((m) => m.api === true)
-      .filter((m) => m.monitor?.down === false)
-      .filter((m) => (m.monitor?.last_status ?? 200) === 200)
-      .map((m) => String(m.uri))
-      // Prefer https
-      .filter((u) => u.startsWith("https://"))
-      .slice(0, 12);
-
-    cachedInstances = { at: now, list: list.length ? list : FALLBACK_INSTANCES };
-    console.log("Using instances:", cachedInstances.list.join(", "));
-    return cachedInstances.list;
-  } catch (e) {
-    console.error("Failed to fetch instances list:", e);
-    cachedInstances = { at: now, list: FALLBACK_INSTANCES };
-    return cachedInstances.list;
   }
+
+  return null;
 }
 
 function absolutizeUrl(base: string, maybeRelative: string): string {
@@ -89,15 +97,14 @@ function absolutizeUrl(base: string, maybeRelative: string): string {
   return `${base}/${maybeRelative}`;
 }
 
-async function getAudioFromInvidious(
-  videoId: string,
-): Promise<{ audioUrl: string; title: string; thumbnail: string } | null> {
-  const instances = await getHealthyInstances();
-
-  for (const base of instances) {
+async function getAudioFromInvidious(videoId: string): Promise<AudioResult | null> {
+  for (const base of INVIDIOUS_INSTANCES) {
     try {
       const url = `${base}/api/v1/videos/${videoId}?local=true`;
-      console.log("Trying:", url);
+      console.log("Trying Invidious:", url);
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
 
       const res = await fetch(url, {
         headers: {
@@ -105,17 +112,19 @@ async function getAudioFromInvidious(
           "User-Agent": UA,
           "Accept-Language": "en-US,en;q=0.9",
         },
+        signal: controller.signal,
       });
 
+      clearTimeout(timeoutId);
+
       if (!res.ok) {
-        console.log(`Instance ${base} returned ${res.status}`);
+        console.log(`Invidious ${base} returned ${res.status}`);
         continue;
       }
 
       const text = await res.text();
-      // Some instances return HTML blocks (rate limit / WAF)
       if (text.trim().startsWith("<")) {
-        console.log(`Instance ${base} returned HTML (skipping)`);
+        console.log(`Invidious ${base} returned HTML (skipping)`);
         continue;
       }
 
@@ -123,7 +132,7 @@ async function getAudioFromInvidious(
       try {
         data = JSON.parse(text);
       } catch {
-        console.log(`Instance ${base} returned non-JSON (skipping)`);
+        console.log(`Invidious ${base} returned non-JSON (skipping)`);
         continue;
       }
 
@@ -151,11 +160,11 @@ async function getAudioFromInvidious(
       const title = String(data?.title ?? "Unknown");
       const thumbnail = String(data?.videoThumbnails?.[0]?.url ?? "");
 
-      console.log("Selected audio:", best?.type ?? best?.mimeType, "bitrate:", best?.bitrate);
+      console.log("Selected audio from Invidious:", best?.type ?? best?.mimeType, "bitrate:", best?.bitrate);
 
       return { audioUrl, title, thumbnail };
     } catch (e) {
-      console.error(`Error with instance ${base}:`, e);
+      console.error(`Invidious ${base} error:`, e);
       continue;
     }
   }
@@ -181,12 +190,18 @@ serve(async (req) => {
 
     console.log(`Processing request for video: ${videoId}`);
 
-    const result = await getAudioFromInvidious(videoId);
+    // Try Piped first (more reliable)
+    let result = await getAudioFromPiped(videoId);
+
+    // Fallback to Invidious
+    if (!result) {
+      console.log("Piped failed, trying Invidious...");
+      result = await getAudioFromInvidious(videoId);
+    }
 
     if (!result) {
-      // 404 makes the client treat this as a missing/unsupported item
       return new Response(JSON.stringify({
-        error: "Could not extract audio. This happens when instances are down/rate-limiting. Try another song or retry in a minute.",
+        error: "Could not extract audio. All sources are down or rate-limiting. Try again in a minute.",
       }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -205,4 +220,3 @@ serve(async (req) => {
     });
   }
 });
-
