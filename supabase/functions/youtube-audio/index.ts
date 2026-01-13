@@ -9,26 +9,95 @@ const corsHeaders = {
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-// Piped instances - more reliable than Invidious for audio extraction
+// Cobalt API instances (free, reliable)
+const COBALT_INSTANCES = [
+  "https://api.cobalt.tools",
+  "https://co.wuk.sh",
+];
+
+// Piped instances as fallback
 const PIPED_INSTANCES = [
   "https://pipedapi.kavin.rocks",
   "https://pipedapi.adminforge.de",
-  "https://api.piped.yt",
-  "https://pipedapi.darkness.services",
   "https://pipedapi.moomoo.me",
-];
-
-// Invidious fallback instances
-const INVIDIOUS_INSTANCES = [
-  "https://yewtu.be",
-  "https://vid.puffyan.us",
-  "https://invidious.snopyta.org",
 ];
 
 interface AudioResult {
   audioUrl: string;
   title: string;
   thumbnail: string;
+}
+
+async function getAudioFromCobalt(videoId: string): Promise<AudioResult | null> {
+  const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  
+  for (const base of COBALT_INSTANCES) {
+    try {
+      console.log("Trying Cobalt:", base);
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+      const res = await fetch(base, {
+        method: "POST",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "User-Agent": UA,
+        },
+        body: JSON.stringify({
+          url: youtubeUrl,
+          downloadMode: "audio",
+          audioFormat: "mp3",
+          audioBitrate: "320",
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        console.log(`Cobalt ${base} returned ${res.status}`);
+        continue;
+      }
+
+      const data = await res.json();
+      console.log("Cobalt response:", JSON.stringify(data));
+
+      if (data.status === "error") {
+        console.log(`Cobalt error: ${data.error?.code || data.text}`);
+        continue;
+      }
+
+      // Handle tunnel/redirect response
+      if ((data.status === "tunnel" || data.status === "redirect") && data.url) {
+        return {
+          audioUrl: data.url,
+          title: data.filename || "Unknown",
+          thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+        };
+      }
+
+      // Handle picker response (multiple options)
+      if (data.status === "picker" && data.picker?.[0]?.url) {
+        const audioItem = data.picker.find((item: any) => 
+          item.type === "audio" || item.url?.includes("audio")
+        ) || data.picker[0];
+        
+        return {
+          audioUrl: audioItem.url,
+          title: data.filename || "Unknown",
+          thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+        };
+      }
+
+    } catch (e) {
+      console.error(`Cobalt ${base} error:`, e);
+      continue;
+    }
+  }
+
+  return null;
 }
 
 async function getAudioFromPiped(videoId: string): Promise<AudioResult | null> {
@@ -78,93 +147,10 @@ async function getAudioFromPiped(videoId: string): Promise<AudioResult | null> {
       return {
         audioUrl: best.url,
         title: data.title || "Unknown",
-        thumbnail: data.thumbnailUrl || "",
+        thumbnail: data.thumbnailUrl || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
       };
     } catch (e) {
       console.error(`Piped ${base} error:`, e);
-      continue;
-    }
-  }
-
-  return null;
-}
-
-function absolutizeUrl(base: string, maybeRelative: string): string {
-  if (!maybeRelative) return maybeRelative;
-  if (maybeRelative.startsWith("http://") || maybeRelative.startsWith("https://")) return maybeRelative;
-  if (maybeRelative.startsWith("//")) return `https:${maybeRelative}`;
-  if (maybeRelative.startsWith("/")) return `${base}${maybeRelative}`;
-  return `${base}/${maybeRelative}`;
-}
-
-async function getAudioFromInvidious(videoId: string): Promise<AudioResult | null> {
-  for (const base of INVIDIOUS_INSTANCES) {
-    try {
-      const url = `${base}/api/v1/videos/${videoId}?local=true`;
-      console.log("Trying Invidious:", url);
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-      const res = await fetch(url, {
-        headers: {
-          Accept: "application/json",
-          "User-Agent": UA,
-          "Accept-Language": "en-US,en;q=0.9",
-        },
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!res.ok) {
-        console.log(`Invidious ${base} returned ${res.status}`);
-        continue;
-      }
-
-      const text = await res.text();
-      if (text.trim().startsWith("<")) {
-        console.log(`Invidious ${base} returned HTML (skipping)`);
-        continue;
-      }
-
-      let data: any;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        console.log(`Invidious ${base} returned non-JSON (skipping)`);
-        continue;
-      }
-
-      const formats: any[] = [
-        ...(Array.isArray(data?.adaptiveFormats) ? data.adaptiveFormats : []),
-        ...(Array.isArray(data?.formatStreams) ? data.formatStreams : []),
-      ];
-
-      const audioFormats = formats
-        .filter((f) => {
-          const type = String(f?.type ?? f?.mimeType ?? "");
-          return type.startsWith("audio/") || type.includes("audio/");
-        })
-        .filter((f) => f?.url);
-
-      if (!audioFormats.length) {
-        console.log(`No audio formats found from ${base}`);
-        continue;
-      }
-
-      audioFormats.sort((a, b) => (Number(b?.bitrate ?? 0) - Number(a?.bitrate ?? 0)));
-      const best = audioFormats[0];
-
-      const audioUrl = absolutizeUrl(base, String(best.url));
-      const title = String(data?.title ?? "Unknown");
-      const thumbnail = String(data?.videoThumbnails?.[0]?.url ?? "");
-
-      console.log("Selected audio from Invidious:", best?.type ?? best?.mimeType, "bitrate:", best?.bitrate);
-
-      return { audioUrl, title, thumbnail };
-    } catch (e) {
-      console.error(`Invidious ${base} error:`, e);
       continue;
     }
   }
@@ -190,18 +176,18 @@ serve(async (req) => {
 
     console.log(`Processing request for video: ${videoId}`);
 
-    // Try Piped first (more reliable)
-    let result = await getAudioFromPiped(videoId);
+    // Try Cobalt first (most reliable)
+    let result = await getAudioFromCobalt(videoId);
 
-    // Fallback to Invidious
+    // Fallback to Piped
     if (!result) {
-      console.log("Piped failed, trying Invidious...");
-      result = await getAudioFromInvidious(videoId);
+      console.log("Cobalt failed, trying Piped...");
+      result = await getAudioFromPiped(videoId);
     }
 
     if (!result) {
       return new Response(JSON.stringify({
-        error: "Could not extract audio. All sources are down or rate-limiting. Try again in a minute.",
+        error: "Could not extract audio. All sources are down. Try again later.",
       }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

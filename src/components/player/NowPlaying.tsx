@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { usePlayer } from '@/contexts/PlayerContext';
@@ -19,17 +19,13 @@ import {
   ListMusic,
   Sliders,
   Share2,
-  Video,
-  VideoOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { AspectRatio } from '@/components/ui/aspect-ratio';
 
 export default function NowPlaying() {
   const navigate = useNavigate();
   const { isLiked, toggleLike } = useLikes();
-  const iframeRef = useRef<HTMLIFrameElement>(null);
   const {
     currentSong,
     isPlaying,
@@ -39,7 +35,6 @@ export default function NowPlaying() {
     isMuted,
     shuffle,
     repeat,
-    videoMode,
     toggle,
     next,
     previous,
@@ -48,18 +43,12 @@ export default function NowPlaying() {
     toggleMute,
     toggleShuffle,
     setRepeat,
-    toggleVideoMode,
   } = usePlayer();
 
   if (!currentSong) {
     navigate('/');
     return null;
   }
-
-  const isYouTube = currentSong.id.startsWith('yt-');
-  const youtubeId = isYouTube ? currentSong.id.replace('yt-', '') : '';
-
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -112,77 +101,43 @@ export default function NowPlaying() {
               {currentSong.album || 'Unknown Album'}
             </p>
           </div>
-          <div className="flex items-center gap-1">
-            {/* Video/Audio toggle for YouTube */}
-            {isYouTube && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={toggleVideoMode}
-                className="text-muted-foreground hover:text-foreground"
-                title={videoMode ? "Switch to Audio" : "Switch to Video"}
-              >
-                {videoMode ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <Share2 className="w-5 h-5" />
-            </Button>
-          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <Share2 className="w-5 h-5" />
+          </Button>
         </div>
 
-        {/* Media */}
+        {/* Album Art - Rotating Vinyl */}
         <div className="flex-1 flex items-center justify-center px-8 py-4">
-          {isYouTube && videoMode ? (
-            // Video mode - show YouTube player
-            <div className="w-full max-w-[720px]">
-              <AspectRatio
-                ratio={16 / 9}
-                className="overflow-hidden rounded-xl border border-border bg-muted"
-              >
-                <iframe
-                  ref={iframeRef}
-                  title={currentSong.title}
-                  src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&playsinline=1&controls=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`}
-                  className="h-full w-full"
-                  allow="autoplay; encrypted-media; picture-in-picture"
-                  allowFullScreen
-                />
-              </AspectRatio>
-            </div>
-          ) : (
-            // Audio mode - show rotating album art (for both local and YouTube)
-            <motion.div
-              animate={{ rotate: isPlaying ? 360 : 0 }}
-              transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-              style={{ animationPlayState: isPlaying ? 'running' : 'paused' }}
-              className={cn(
-                'relative w-full max-w-[320px] aspect-square rounded-full overflow-hidden shadow-2xl',
-                !isPlaying && 'paused'
-              )}
-            >
-              {currentSong.artwork ? (
-                <img
-                  src={currentSong.artwork}
-                  alt={currentSong.title}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full gradient-primary flex items-center justify-center">
-                  <span className="text-8xl">🎵</span>
-                </div>
-              )}
-              {/* Vinyl effect */}
-              <div className="absolute inset-0 rounded-full border-4 border-foreground/10" />
-              <div className="absolute inset-[35%] rounded-full bg-background/90 flex items-center justify-center">
-                <div className="w-4 h-4 rounded-full bg-foreground/20" />
+          <motion.div
+            animate={{ rotate: isPlaying ? 360 : 0 }}
+            transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+            style={{ animationPlayState: isPlaying ? 'running' : 'paused' }}
+            className={cn(
+              'relative w-full max-w-[320px] aspect-square rounded-full overflow-hidden shadow-2xl',
+              !isPlaying && 'paused'
+            )}
+          >
+            {currentSong.artwork ? (
+              <img
+                src={currentSong.artwork}
+                alt={currentSong.title}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full gradient-primary flex items-center justify-center">
+                <span className="text-8xl">🎵</span>
               </div>
-            </motion.div>
-          )}
+            )}
+            {/* Vinyl effect */}
+            <div className="absolute inset-0 rounded-full border-4 border-foreground/10" />
+            <div className="absolute inset-[35%] rounded-full bg-background/90 flex items-center justify-center">
+              <div className="w-4 h-4 rounded-full bg-foreground/20" />
+            </div>
+          </motion.div>
         </div>
 
         {/* Song Info */}

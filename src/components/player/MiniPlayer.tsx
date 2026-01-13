@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { usePlayer } from "@/contexts/PlayerContext";
 import { useLikes } from "@/contexts/LikesContext";
 import { cn } from "@/lib/utils";
-import { Play, Pause, SkipForward, Heart, Video, VideoOff } from "lucide-react";
+import { Play, Pause, SkipForward, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function MiniPlayer() {
@@ -15,16 +15,13 @@ export default function MiniPlayer() {
     isPlaying, 
     currentTime, 
     duration, 
-    videoMode,
     toggle, 
     next, 
     seek,
-    toggleVideoMode,
   } = usePlayer();
 
   if (!currentSong) return null;
 
-  const isYouTube = currentSong.id.startsWith("yt-");
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   const handleExpandPlayer = () => {
@@ -103,19 +100,6 @@ export default function MiniPlayer() {
               )}
             />
           </Button>
-
-          {/* Video/Audio toggle for YouTube */}
-          {isYouTube && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleVideoMode}
-              className="h-9 w-9 text-muted-foreground"
-              title={videoMode ? "Switch to Audio" : "Switch to Video"}
-            >
-              {videoMode ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
-            </Button>
-          )}
 
           <Button
             onClick={toggle}
