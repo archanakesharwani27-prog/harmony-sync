@@ -9,21 +9,18 @@ const corsHeaders = {
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-// Piped instances (free YouTube audio extraction)
+// Piped instances (free YouTube audio extraction) - official list from TeamPiped
 const PIPED_INSTANCES = [
   "https://pipedapi.kavin.rocks",
-  "https://pipedapi.adminforge.de", 
-  "https://pipedapi.moomoo.me",
-  "https://pipedapi.syncpundit.io",
+  "https://pipedapi.leptons.xyz",
+  "https://pipedapi-libre.kavin.rocks",
+  "https://piped-api.privacy.com.de",
+  "https://pipedapi.adminforge.de",
   "https://api.piped.yt",
-];
-
-// Invidious instances as fallback
-const INVIDIOUS_INSTANCES = [
-  "https://invidious.fdn.fr",
-  "https://invidious.io.lol",
-  "https://vid.puffyan.us",
-  "https://yt.artemislena.eu",
+  "https://pipedapi.drgns.space",
+  "https://pipedapi.owo.si",
+  "https://pipedapi.ducks.party",
+  "https://piped-api.codespace.cz",
 ];
 
 interface AudioResult {
@@ -33,13 +30,16 @@ interface AudioResult {
 }
 
 async function getAudioFromPiped(videoId: string): Promise<AudioResult | null> {
-  for (const base of PIPED_INSTANCES) {
+  // Shuffle instances for load balancing
+  const shuffled = [...PIPED_INSTANCES].sort(() => Math.random() - 0.5);
+  
+  for (const base of shuffled) {
     try {
       const url = `${base}/streams/${videoId}`;
       console.log("Trying Piped:", url);
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
 
       const res = await fetch(url, {
         headers: {
@@ -58,15 +58,27 @@ async function getAudioFromPiped(videoId: string): Promise<AudioResult | null> {
 
       const data = await res.json();
 
+      // Check for error response
+      if (data.error) {
+        console.log(`Piped ${base} error:`, data.error);
+        continue;
+      }
+
       if (!data?.audioStreams || !Array.isArray(data.audioStreams) || data.audioStreams.length === 0) {
         console.log(`No audio streams from ${base}`);
         continue;
       }
 
-      // Sort by bitrate and get the best audio stream
+      // Sort by bitrate and get the best audio stream (prefer opus/webm for compatibility)
       const audioStreams = data.audioStreams
         .filter((s: any) => s?.url && s?.mimeType?.startsWith("audio/"))
-        .sort((a: any, b: any) => (b?.bitrate ?? 0) - (a?.bitrate ?? 0));
+        .sort((a: any, b: any) => {
+          // Prefer webm/opus for better browser compatibility
+          const aWebm = a.mimeType?.includes("webm") ? 1 : 0;
+          const bWebm = b.mimeType?.includes("webm") ? 1 : 0;
+          if (aWebm !== bWebm) return bWebm - aWebm;
+          return (b?.bitrate ?? 0) - (a?.bitrate ?? 0);
+        });
 
       if (audioStreams.length === 0) {
         console.log(`No valid audio streams from ${base}`);
@@ -82,65 +94,8 @@ async function getAudioFromPiped(videoId: string): Promise<AudioResult | null> {
         thumbnail: data.thumbnailUrl || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
       };
     } catch (e) {
-      console.error(`Piped ${base} error:`, e);
-      continue;
-    }
-  }
-
-  return null;
-}
-
-async function getAudioFromInvidious(videoId: string): Promise<AudioResult | null> {
-  for (const base of INVIDIOUS_INSTANCES) {
-    try {
-      const url = `${base}/api/v1/videos/${videoId}`;
-      console.log("Trying Invidious:", url);
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-      const res = await fetch(url, {
-        headers: {
-          Accept: "application/json",
-          "User-Agent": UA,
-        },
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!res.ok) {
-        console.log(`Invidious ${base} returned ${res.status}`);
-        continue;
-      }
-
-      const data = await res.json();
-
-      if (!data?.adaptiveFormats || !Array.isArray(data.adaptiveFormats)) {
-        console.log(`No adaptive formats from ${base}`);
-        continue;
-      }
-
-      // Get audio-only formats
-      const audioFormats = data.adaptiveFormats
-        .filter((f: any) => f?.type?.startsWith("audio/") && f?.url)
-        .sort((a: any, b: any) => (b?.bitrate ?? 0) - (a?.bitrate ?? 0));
-
-      if (audioFormats.length === 0) {
-        console.log(`No valid audio formats from ${base}`);
-        continue;
-      }
-
-      const best = audioFormats[0];
-      console.log("Selected audio from Invidious:", best.type, "bitrate:", best.bitrate);
-
-      return {
-        audioUrl: best.url,
-        title: data.title || "Unknown",
-        thumbnail: data.videoThumbnails?.[0]?.url || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
-      };
-    } catch (e) {
-      console.error(`Invidious ${base} error:`, e);
+      const errorMsg = e instanceof Error ? e.message : String(e);
+      console.error(`Piped ${base} error:`, errorMsg);
       continue;
     }
   }
@@ -166,20 +121,15 @@ serve(async (req) => {
 
     console.log(`Processing request for video: ${videoId}`);
 
-    // Try Piped first
-    let result = await getAudioFromPiped(videoId);
-
-    // Fallback to Invidious
-    if (!result) {
-      console.log("Piped failed, trying Invidious...");
-      result = await getAudioFromInvidious(videoId);
-    }
+    // Try Piped instances
+    const result = await getAudioFromPiped(videoId);
 
     if (!result) {
       return new Response(JSON.stringify({
-        error: "Could not extract audio. All sources are down. Try again later.",
+        error: "Audio extraction unavailable. Please try video mode.",
+        fallbackToVideo: true,
       }), {
-        status: 404,
+        status: 503,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -190,7 +140,10 @@ serve(async (req) => {
   } catch (error: unknown) {
     console.error("Error in youtube-audio function:", error);
     const errorMessage = error instanceof Error ? error.message : "Internal server error";
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    return new Response(JSON.stringify({ 
+      error: errorMessage,
+      fallbackToVideo: true,
+    }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
