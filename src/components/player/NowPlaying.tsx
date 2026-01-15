@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { usePlayer } from '@/contexts/PlayerContext';
@@ -19,8 +19,6 @@ import {
   ListMusic,
   Sliders,
   Share2,
-  Video,
-  Music,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -120,46 +118,43 @@ export default function NowPlaying() {
 
         {/* Album Art / Video Player */}
         <div className="flex-1 flex items-center justify-center px-8 py-4">
-          {isYouTube && videoMode && videoId ? (
-            // Video mode - YouTube embed
-            <div className="relative w-full max-w-[400px] aspect-video rounded-2xl overflow-hidden shadow-2xl bg-black">
-              <iframe
-                ref={iframeRef}
-                src={`https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&modestbranding=1&rel=0&showinfo=0&enablejsapi=1`}
-                className="w-full h-full"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              />
-            </div>
-          ) : (
-            // Audio mode - Rotating Vinyl
-            <motion.div
-              animate={{ rotate: isPlaying ? 360 : 0 }}
-              transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-              style={{ animationPlayState: isPlaying ? 'running' : 'paused' }}
-              className={cn(
-                'relative w-full max-w-[320px] aspect-square rounded-full overflow-hidden shadow-2xl',
-                !isPlaying && 'paused'
-              )}
-            >
-              {currentSong.artwork ? (
-                <img
-                  src={currentSong.artwork}
-                  alt={currentSong.title}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full gradient-primary flex items-center justify-center">
-                  <span className="text-8xl">🎵</span>
-                </div>
-              )}
-              {/* Vinyl effect */}
-              <div className="absolute inset-0 rounded-full border-4 border-foreground/10" />
-              <div className="absolute inset-[35%] rounded-full bg-background/90 flex items-center justify-center">
-                <div className="w-4 h-4 rounded-full bg-foreground/20" />
-              </div>
-            </motion.div>
+          {/* Hidden YouTube embed for audio-only playback when video mode is active */}
+          {isYouTube && videoMode && videoId && (
+            <iframe
+              ref={iframeRef}
+              src={`https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&modestbranding=1&rel=0&showinfo=0&enablejsapi=1`}
+              className="absolute w-0 h-0 opacity-0 pointer-events-none"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            />
           )}
+          
+          {/* Always show rotating vinyl for audio-only aesthetic */}
+          <motion.div
+            animate={{ rotate: isPlaying ? 360 : 0 }}
+            transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+            style={{ animationPlayState: isPlaying ? 'running' : 'paused' }}
+            className={cn(
+              'relative w-full max-w-[320px] aspect-square rounded-full overflow-hidden shadow-2xl',
+              !isPlaying && 'paused'
+            )}
+          >
+            {currentSong.artwork ? (
+              <img
+                src={currentSong.artwork}
+                alt={currentSong.title}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full gradient-primary flex items-center justify-center">
+                <span className="text-8xl">🎵</span>
+              </div>
+            )}
+            {/* Vinyl effect */}
+            <div className="absolute inset-0 rounded-full border-4 border-foreground/10" />
+            <div className="absolute inset-[35%] rounded-full bg-background/90 flex items-center justify-center">
+              <div className="w-4 h-4 rounded-full bg-foreground/20" />
+            </div>
+          </motion.div>
         </div>
 
         {/* Song Info */}
@@ -284,19 +279,6 @@ export default function NowPlaying() {
 
         {/* Bottom Actions */}
         <div className="flex items-center justify-center gap-8 mt-8 pb-8">
-          {/* Audio/Video Mode Toggle - Only for YouTube */}
-          {isYouTube && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleVideoMode}
-              className={cn(
-                videoMode ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {videoMode ? <Video className="w-5 h-5" /> : <Music className="w-5 h-5" />}
-            </Button>
-          )}
           <Button
             variant="ghost"
             size="icon"
