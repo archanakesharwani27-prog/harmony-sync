@@ -129,8 +129,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
       let audioUrl = song.url;
 
-      // YouTube tracks: extract audio via edge function (audio-only, no video fallback)
-      if (song.id.startsWith('yt-')) {
+      // YouTube tracks: try audio extraction, fallback to video mode
+      if (song.id.startsWith('yt-') && !state.videoMode) {
         const videoId = song.id.replace('yt-', '');
         try {
           console.log('Extracting audio for YouTube video:', videoId);
@@ -144,8 +144,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
           if (error || !data?.audioUrl) {
             console.error('Failed to extract YouTube audio:', error || 'No audio URL');
-            toast.error('Audio unavailable. Try another song.');
-            dispatch({ type: 'SET_PLAYING', payload: false });
+            toast.info('Audio unavailable. Switching to video mode.');
+            dispatch({ type: 'SET_VIDEO_MODE', payload: true });
             return;
           }
 
@@ -154,10 +154,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         } catch (err) {
           console.error('YouTube audio extraction error:', err);
           toast.dismiss('yt-loading');
-          toast.error('Failed to load audio. Try again.');
-          dispatch({ type: 'SET_PLAYING', payload: false });
+          toast.info('Audio extraction failed. Switching to video mode.');
+          dispatch({ type: 'SET_VIDEO_MODE', payload: true });
           return;
         }
+      }
+
+      // In video mode for YouTube, don't create Howl - video player handles audio
+      if (song.id.startsWith('yt-') && state.videoMode) {
+        dispatch({ type: 'SET_PLAYING', payload: true });
+        return;
       }
 
       howlRef.current = new Howl({
