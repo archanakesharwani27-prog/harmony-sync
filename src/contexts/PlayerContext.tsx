@@ -19,7 +19,6 @@ interface PlayerContextType extends PlayerState {
   clearQueue: () => void;
   playPlaylist: (songs: Song[], startIndex?: number) => void;
   removefromQueue: (index: number) => void;
-  toggleVideoMode: () => void;
 }
 
 type PlayerAction =
@@ -35,8 +34,7 @@ type PlayerAction =
   | { type: 'SET_QUEUE_INDEX'; payload: number }
   | { type: 'ADD_TO_QUEUE'; payload: Song[] }
   | { type: 'REMOVE_FROM_QUEUE'; payload: number }
-  | { type: 'CLEAR_QUEUE' }
-  | { type: 'SET_VIDEO_MODE'; payload: boolean };
+  | { type: 'CLEAR_QUEUE' };
 
 const initialState: PlayerState = {
   currentSong: null,
@@ -49,7 +47,6 @@ const initialState: PlayerState = {
   repeat: 'none',
   queue: [],
   queueIndex: -1,
-  videoMode: false, // Default to audio-only mode like YT Music
 };
 
 function playerReducer(state: PlayerState, action: PlayerAction): PlayerState {
@@ -84,8 +81,6 @@ function playerReducer(state: PlayerState, action: PlayerAction): PlayerState {
       };
     case 'CLEAR_QUEUE':
       return { ...state, queue: [], queueIndex: -1, currentSong: null };
-    case 'SET_VIDEO_MODE':
-      return { ...state, videoMode: action.payload };
     default:
       return state;
   }
@@ -129,8 +124,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
       let audioUrl = song.url;
 
-      // YouTube tracks: try audio extraction, fallback to video mode
-      if (song.id.startsWith('yt-') && !state.videoMode) {
+      // YouTube tracks: extract audio only
+      if (song.id.startsWith('yt-')) {
         const videoId = song.id.replace('yt-', '');
         try {
           console.log('Extracting audio for YouTube video:', videoId);
@@ -144,8 +139,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
           if (error || !data?.audioUrl) {
             console.error('Failed to extract YouTube audio:', error || 'No audio URL');
-            toast.info('Audio unavailable. Switching to video mode.');
-            dispatch({ type: 'SET_VIDEO_MODE', payload: true });
+            toast.error('Audio not available for this song');
             return;
           }
 
@@ -154,16 +148,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         } catch (err) {
           console.error('YouTube audio extraction error:', err);
           toast.dismiss('yt-loading');
-          toast.info('Audio extraction failed. Switching to video mode.');
-          dispatch({ type: 'SET_VIDEO_MODE', payload: true });
+          toast.error('Failed to load audio');
           return;
         }
-      }
-
-      // In video mode for YouTube, don't create Howl - video player handles audio
-      if (song.id.startsWith('yt-') && state.videoMode) {
-        dispatch({ type: 'SET_PLAYING', payload: true });
-        return;
       }
 
       howlRef.current = new Howl({
@@ -374,10 +361,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'REMOVE_FROM_QUEUE', payload: index });
   }, []);
 
-  const toggleVideoMode = useCallback(() => {
-    dispatch({ type: 'SET_VIDEO_MODE', payload: !state.videoMode });
-  }, [state.videoMode]);
-
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -402,7 +385,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     clearQueue,
     playPlaylist,
     removefromQueue,
-    toggleVideoMode,
   };
 
   return (

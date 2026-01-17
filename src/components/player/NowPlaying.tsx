@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { usePlayer } from '@/contexts/PlayerContext';
@@ -35,7 +35,6 @@ export default function NowPlaying() {
     isMuted,
     shuffle,
     repeat,
-    videoMode,
     toggle,
     next,
     previous,
@@ -44,12 +43,7 @@ export default function NowPlaying() {
     toggleMute,
     toggleShuffle,
     setRepeat,
-    toggleVideoMode,
   } = usePlayer();
-  
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  const isYouTube = currentSong?.id?.startsWith('yt-');
-  const videoId = isYouTube ? currentSong?.id?.replace('yt-', '') : null;
 
   if (!currentSong) {
     navigate('/');
@@ -116,19 +110,8 @@ export default function NowPlaying() {
           </Button>
         </div>
 
-        {/* Album Art / Video Player */}
+        {/* Album Art - Rotating Vinyl */}
         <div className="flex-1 flex items-center justify-center px-8 py-4">
-          {/* Hidden YouTube embed for audio-only playback when video mode is active */}
-          {isYouTube && videoMode && videoId && (
-            <iframe
-              ref={iframeRef}
-              src={`https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&modestbranding=1&rel=0&showinfo=0&enablejsapi=1`}
-              className="absolute w-0 h-0 opacity-0 pointer-events-none"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            />
-          )}
-          
-          {/* Always show rotating vinyl for audio-only aesthetic */}
           <motion.div
             animate={{ rotate: isPlaying ? 360 : 0 }}
             transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
